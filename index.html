@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Hisab - Expense, Investment & Loan Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/styles/app.css" />
+</head>
+<body>
+  <div id="app-root">
+    <!-- Desktop Navigation Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="./assets/icon.png" alt="Daily Hisab Icon" style="width: 42px; height: 42px; border-radius: 12px; object-fit: cover; box-shadow: var(--shadow-glow);" />
+        <div class="brand-text">
+          <h1>Daily Hisab</h1>
+          <p>Personal Finance</p>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <div class="nav-item active" data-tab="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item" data-tab="hisab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Daily Hisab
+        </div>
+        <div class="nav-item" data-tab="loans">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Loans & EMIs
+        </div>
+        <div class="nav-item" data-tab="investments">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          Investments & SIP
+        </div>
+        <div class="nav-item" data-tab="salary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Salary & Income
+        </div>
+        <div class="nav-item" data-tab="budgets">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Budgets & Backup
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button id="themeToggleBtn" class="btn btn-secondary btn-sm" style="width: 100%; justify-content: center; gap: 6px;">
+          🌙 Toggle Dark / Light Theme
+        </button>
+        <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 4px;">
+          Offline Desktop App v1.0 • Secure
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Container -->
+    <main class="main-wrapper">
+      <!-- Top Bar Header -->
+      <header class="top-bar">
+        <div class="page-title">
+          <h2 id="currentTabTitle">Dashboard</h2>
+        </div>
+
+        <div class="top-actions">
+          <div class="ai-smart-bar">
+            <input type="text" id="aiSmartInput" class="form-control ai-input" placeholder="✨ Speak or type e.g. 'Paid 350 for groceries via UPI'..." />
+            <button id="aiVoiceBtn" class="ai-voice-btn" title="Click to Speak Voice Input">🎙️</button>
+            <button id="aiSaveBtn" class="btn btn-primary btn-sm">✨ Auto Save</button>
+          </div>
+
+          <div class="month-picker">
+            <button id="prevMonthBtn" class="month-nav-btn" title="Previous Month">‹</button>
+            <input type="month" id="monthSelector" />
+            <button id="nextMonthBtn" class="month-nav-btn" title="Next Month">›</button>
+          </div>
+
+          <button class="btn btn-secondary btn-sm" id="topQuickAddBtn">
+            + Manual Entry
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Content Dynamic Container -->
+      <section class="content-area" id="contentContainer">
+        <!-- Rendered dynamically by tab router -->
+      </section>
+    </main>
+  </div>
+
+  <!-- Add Hisab Entry Modal -->
+  <div class="modal-overlay" id="txModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3>Add Daily Hisab Entry</h3>
+        <button class="close-btn" data-close="txModal">&times;</button>
+      </div>
+      <form id="txForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Transaction Title / Description *</label>
+            <input type="text" id="txTitle" class="form-control" placeholder="e.g. Vegetables, Petrol, Grocery" required>
+          </div>
+          <div class="form-group">
+            <label>Amount (₹) *</label>
+            <input type="number" step="any" id="txAmount" class="form-control" placeholder="0.00" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Category</label>
+            <select id="txCategory" class="form-control">
+              <option value="Food">Food & Dining</option>
+              <option value="Bills">Bills & Utilities</option>
+              <option value="Transport">Transport & Fuel</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Health">Health & Medical</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="EMI">EMI</option>
+              <option value="Investment">Investment</option>
+              <option value="Income">Income</option>
+              <option value="Others">Others</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select id="txType" class="form-control">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+              <option value="investment">Investment Outflow</option>
+              <option value="emi">EMI Payment</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Payment Method</label>
+            <select id="txPaymentMethod" class="form-control">
+              <option value="UPI">UPI (GPay / PhonePe / Paytm)</option>
+              <option value="Cash">Cash</option>
+              <option value="Credit Card">Credit Card</option>
+              <option value="NetBanking">NetBanking / Bank Transfer</option>
+              <option value="Auto-Debit">Auto-Debit</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="txDate" class="form-control" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes / Comments (Optional)</label>
+          <input type="text" id="txNotes" class="form-control" placeholder="Add additional details...">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-close="txModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Hisab Entry</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Loan Modal -->
+  <div class="modal-overlay" id="loanModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3>Add New Loan / EMI Account</h3>
+        <button class="close-btn" data-close="loanModal">&times;</button>
+      </div>
+      <form id="loanForm">
+        <div class="form-group">
+          <label>Loan Name *</label>
+          <input type="text" id="loanName" class="form-control" placeholder="e.g. HDFC Home Loan, Car Loan" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Lender / Bank</label>
+            <input type="text" id="loanLender" class="form-control" placeholder="e.g. HDFC, ICICI, SBI">
+          </div>
+          <div class="form-group">
+            <label>Interest Rate (% p.a.)</label>
+            <input type="number" step="0.1" id="loanInterest" class="form-control" placeholder="8.5">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Total Principal Amount (₹) *</label>
+            <input type="number" id="loanPrincipal" class="form-control" placeholder="500000" required>
+          </div>
+          <div class="form-group">
+            <label>Remaining Principal Balance (₹)</label>
+            <input type="number" id="loanRemaining" class="form-control" placeholder="400000">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Monthly EMI Amount (₹) *</label>
+            <input type="number" id="loanEmi" class="form-control" placeholder="15000" required>
+          </div>
+          <div class="form-group">
+            <label>EMI Due Day of Month</label>
+            <input type="number" min="1" max="31" id="loanDueDay" class="form-control" placeholder="5" value="5">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-close="loanModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Loan Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Investment Modal -->
+  <div class="modal-overlay" id="invModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3>Add Investment / SIP Holding</h3>
+        <button class="close-btn" data-close="invModal">&times;</button>
+      </div>
+      <form id="invForm">
+        <div class="form-group">
+          <label>Investment Name *</label>
+          <input type="text" id="invName" class="form-control" placeholder="e.g. Parag Parikh Flexi Cap, Sovereign Gold Bond" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Category</label>
+            <select id="invCategory" class="form-control">
+              <option value="Mutual Funds">Mutual Funds</option>
+              <option value="Stocks">Stocks / Equity</option>
+              <option value="Fixed Deposit">Fixed Deposit / RD</option>
+              <option value="Gold">Gold / SGB</option>
+              <option value="Crypto">Crypto</option>
+              <option value="PPF/EPF">Provident Fund (PPF/EPF)</option>
+              <option value="Real Estate">Real Estate</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select id="invType" class="form-control">
+              <option value="SIP">Monthly SIP</option>
+              <option value="LumpSum">LumpSum Investment</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Monthly SIP Amount (₹)</label>
+            <input type="number" id="invMonthlySip" class="form-control" placeholder="5000" value="0">
+          </div>
+          <div class="form-group">
+            <label>Platform / App</label>
+            <input type="text" id="invPlatform" class="form-control" placeholder="e.g. Groww, Zerodha, Bank">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Total Invested Amount (₹)</label>
+            <input type="number" id="invTotalInvested" class="form-control" placeholder="50000">
+          </div>
+          <div class="form-group">
+            <label>Current Value (₹)</label>
+            <input type="number" id="invCurrentValue" class="form-control" placeholder="58000">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-close="invModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Investment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Salary Edit Modal -->
+  <div class="modal-overlay" id="salaryModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3>Log Monthly Salary Details</h3>
+        <button class="close-btn" data-close="salaryModal">&times;</button>
+      </div>
+      <form id="salaryForm">
+        <div class="form-group">
+          <label>Company / Employer Name</label>
+          <input type="text" id="salCompany" class="form-control" placeholder="e.g. Tech Corp" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Gross Salary (₹) *</label>
+            <input type="number" id="salGross" class="form-control" placeholder="100000" required>
+          </div>
+          <div class="form-group">
+            <label>Deductions (PF + TDS Tax) (₹)</label>
+            <input type="number" id="salDeductions" class="form-control" placeholder="8000" value="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Net Amount Received (₹)</label>
+            <input type="number" id="salNet" class="form-control" placeholder="92000">
+          </div>
+          <div class="form-group">
+            <label>Credit Date</label>
+            <input type="date" id="salDate" class="form-control">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-close="salaryModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Salary Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Smart Voice Entry Modal -->
+  <div class="modal-overlay" id="voiceModal">
+    <div class="modal-container" style="text-align: center; max-width: 440px;">
+      <div class="modal-header">
+        <h3>🎙️ Smart AI Voice Entry</h3>
+        <button class="close-btn" data-close="voiceModal">&times;</button>
+      </div>
+      <div style="padding: 10px 0 20px 0;">
+        <div id="voiceMicVisualizer" class="mic-visualizer">
+          <div class="mic-circle">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+          </div>
+        </div>
+        <p id="voiceStatusText" style="font-weight: 600; font-size: 14px; margin-top: 14px; color: var(--accent-primary);">
+          Listening... Speak your sentence now
+        </p>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+          e.g. <i>"Paid 350 for lunch via PhonePe"</i> or <i>"350 rupaye petrol pe kharcha"</i>
+        </p>
+
+        <div style="margin-top: 18px;">
+          <input type="text" id="voiceTranscriptInput" class="form-control" placeholder="Type or speak here..." style="text-align: center; font-weight: 600;" autofocus />
+        </div>
+      </div>
+
+      <div class="modal-actions" style="justify-content: center;">
+        <button type="button" class="btn btn-secondary" data-close="voiceModal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="submitVoiceBtn">✨ Process & Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/js/app.js"></script>
+</body>
+</html>

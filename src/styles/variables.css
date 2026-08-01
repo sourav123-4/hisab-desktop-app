@@ -1,0 +1,84 @@
+:root {
+  /* Color Palette - Modern Dark Theme Default */
+  --bg-primary: #090d16;
+  --bg-secondary: #111827;
+  --bg-card: rgba(17, 24, 39, 0.75);
+  --bg-card-hover: rgba(31, 41, 55, 0.85);
+  --bg-header: rgba(17, 24, 39, 0.8);
+  --bg-elevated: #1e293b;
+  --bg-input: #0f172a;
+  --border-color: rgba(255, 255, 255, 0.09);
+  --border-color-hover: rgba(99, 102, 241, 0.35);
+
+  /* Text Colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  /* Accent Colors */
+  --accent-primary: #6366f1;
+  --accent-primary-hover: #4f46e5;
+  --accent-primary-light: rgba(99, 102, 241, 0.16);
+
+  --accent-success: #10b981;
+  --accent-success-light: rgba(16, 185, 129, 0.16);
+
+  --accent-warning: #f59e0b;
+  --accent-warning-light: rgba(245, 158, 11, 0.16);
+
+  --accent-danger: #ef4444;
+  --accent-danger-light: rgba(239, 68, 68, 0.16);
+
+  --accent-info: #06b6d4;
+  --accent-info-light: rgba(6, 182, 212, 0.16);
+
+  --accent-purple: #a855f7;
+  --accent-purple-light: rgba(168, 85, 247, 0.16);
+
+  /* Gradients */
+  --grad-primary: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --grad-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --grad-danger: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  --grad-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  --grad-info: linear-gradient(135deg, #06b6d4 0%, #0284c7 100%);
+  --grad-card: linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.7) 100%);
+
+  /* UI Dimensions & Shadows */
+  --sidebar-width: 235px;
+  --header-height: 64px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.3);
+
+  /* Transitions & Fonts */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f1f5f9;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-header: rgba(255, 255, 255, 0.9);
+  --bg-elevated: #e2e8f0;
+  --bg-input: #ffffff;
+  --border-color: #cbd5e1;
+  --border-color-hover: #6366f1;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+}
