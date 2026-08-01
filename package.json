@@ -32,8 +32,14 @@
       "category": "public.app-category.finance",
       "icon": "assets/icon.png",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
       ]
     },
     "win": {
@@ -41,9 +47,7 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64", "ia32"]
         }
       ]
     },
@@ -53,17 +57,11 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
+          "arch": ["x64"]
         },
         {
           "target": "deb",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
+          "arch": ["x64"]
         }
       ]
     }
