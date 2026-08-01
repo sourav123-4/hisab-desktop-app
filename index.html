@@ -67,6 +67,11 @@
         </div>
 
         <div class="top-actions">
+          <div id="cloudSyncBadge" class="cloud-sync-badge" title="Firebase Cloud Sync Status" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; font-size: 11.5px; font-weight: 600; background: rgba(16, 185, 129, 0.12); color: var(--accent-success); border: 1px solid rgba(16, 185, 129, 0.3); white-space: nowrap;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-success); display: inline-block;"></span>
+            <span>Cloud Synced</span>
+          </div>
+
           <div class="ai-smart-bar">
             <input type="text" id="aiSmartInput" class="form-control ai-input" placeholder="✨ Speak or type e.g. 'Paid 350 for groceries via UPI'..." />
             <button id="aiVoiceBtn" class="ai-voice-btn" title="Click to Speak Voice Input">🎙️</button>
@@ -324,32 +329,48 @@
 
   <!-- Smart Voice Entry Modal -->
   <div class="modal-overlay" id="voiceModal">
-    <div class="modal-container" style="text-align: center; max-width: 440px;">
+    <div class="modal-container" style="text-align: center; max-width: 520px;">
       <div class="modal-header">
-        <h3>🎙️ Smart AI Voice Entry</h3>
+        <h3>🎙️ Smart AI Multi-Hisab Voice Entry</h3>
         <button class="close-btn" data-close="voiceModal">&times;</button>
       </div>
-      <div style="padding: 10px 0 20px 0;">
+      <div style="padding: 10px 0 16px 0;">
         <div id="voiceMicVisualizer" class="mic-visualizer">
           <div class="mic-circle">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
           </div>
         </div>
-        <p id="voiceStatusText" style="font-weight: 600; font-size: 14px; margin-top: 14px; color: var(--accent-primary);">
-          Listening... Speak your sentence now
-        </p>
-        <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
-          e.g. <i>"Paid 350 for lunch via PhonePe"</i> or <i>"350 rupaye petrol pe kharcha"</i>
+        <p id="voiceStatusText" style="font-weight: 700; font-size: 13.5px; margin-top: 8px; color: var(--accent-primary);">
+          🔴 Microphone Active! Speak one or multiple transactions:
         </p>
 
-        <div style="margin-top: 18px;">
-          <input type="text" id="voiceTranscriptInput" class="form-control" placeholder="Type or speak here..." style="text-align: center; font-weight: 600;" autofocus />
+        <div style="margin: 10px 0; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+          <button type="button" class="btn btn-primary btn-sm" id="macDictationBtn" style="padding: 7px 18px; font-weight: 700; border-radius: 20px; box-shadow: var(--shadow-glow);">
+            🎙️ Tap to Dictate with Voice
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="toggleRecordBtn" style="padding: 7px 18px; font-weight: 700; border-radius: 20px;">
+            🔴 Mic Visualizer On
+          </button>
+        </div>
+
+        <p style="font-size: 11px; color: var(--text-muted);">
+          Speak multiple items at once: <i>"350 petrol, 500 groceries via UPI, and 12000 emi paid"</i>
+        </p>
+
+        <div style="margin-top: 14px;">
+          <textarea id="voiceTranscriptInput" class="form-control" rows="3" placeholder="Speak or dictation text appears here... Speak multiple items at once!" style="font-weight: 600; font-size: 13.5px; resize: vertical;" autofocus></textarea>
+        </div>
+
+        <!-- Live Extracted Multi-Item Preview Container -->
+        <div id="voicePreviewBox" style="margin-top: 12px; text-align: left; background: rgba(0,0,0,0.18); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; min-height: 48px; max-height: 120px; overflow-y: auto;">
+          <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">✨ Extracted Entries Preview:</div>
+          <div id="voicePreviewItems" style="font-size: 12px; color: var(--text-secondary);">Start speaking to see extracted items...</div>
         </div>
       </div>
 
       <div class="modal-actions" style="justify-content: center;">
         <button type="button" class="btn btn-secondary" data-close="voiceModal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="submitVoiceBtn">✨ Process & Save</button>
+        <button type="button" class="btn btn-primary" id="submitVoiceBtn">✨ Process & Save All</button>
       </div>
     </div>
   </div>

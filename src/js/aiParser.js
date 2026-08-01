@@ -8,19 +8,36 @@ export function parseNaturalLanguageHisab(text) {
   const raw = text.trim();
   let lower = raw.toLowerCase();
 
+  // Strip foreign currency symbols ($ € £ USD EUR GBP) & convert all amounts strictly to Rupees
+  lower = lower.replace(/[$€£]/g, ' ').replace(/\b(usd|eur|gbp|dollars?|cents?)\b/gi, ' ');
+
   // Normalize Hinglish shorthand numbers (e.g. 5k -> 5000, 20 hazar -> 20000, 1 lakh -> 100000)
   lower = lower
     .replace(/(\d+)\s*k\b/gi, (_, n) => `${parseFloat(n) * 1000}`)
     .replace(/(\d+)\s*(?:hazar|thousand)/gi, (_, n) => `${parseFloat(n) * 1000}`)
     .replace(/(\d+)\s*lakh/gi, (_, n) => `${parseFloat(n) * 100000}`);
 
-  // 1. Extract Amount (e.g., 350, 1,200, ₹450, 15000)
-  const amountMatch = lower.match(/(?:rs\.?|₹|inr|rupaye|rupees)?\s*(\d+(?:,\d+)*(?:\.\d+)?)/i);
+  // Fix speech-to-text decimal artifacts (e.g. 52.00 -> 52000, 52.000 -> 52000)
+  lower = lower.replace(/(\d+)\.00\b/g, '$1000');
+  lower = lower.replace(/(\d+)\.(\d{3})\b/g, '$1$2');
+  lower = lower.replace(/(\d+)[\.,](\d{3})(?:[\.,]00)?\b/g, '$1$2');
+
+  // Remove trailing period at sentence end if after digits (e.g. '52000.' -> '52000')
+  lower = lower.replace(/(\d+)\.(?!\d)/g, '$1');
+
+  // 1. Extract Amount (e.g., 350, 1,200, ₹450, 52000, 52,000)
+  const amountMatch = lower.match(/(?:rs\.?|₹|inr|rupaye|rupees)?\s*(\d+(?:[\s,]\d+)*(?:\.\d{1,2})?)/i);
   if (!amountMatch) return null;
 
-  const amountStr = amountMatch[1].replace(/,/g, '');
-  const amount = parseFloat(amountStr);
+  const amountStr = amountMatch[1].replace(/[\s,]/g, '');
+  let amount = parseFloat(amountStr);
   if (isNaN(amount) || amount <= 0) return null;
+
+  // Auto-scale salary/income shorthand amounts (e.g., "salary 52" or "salary 50" -> 52000 / 50000)
+  const isHighValueContext = /salary|income|earned|paycheck|emi|loan|investment/i.test(lower);
+  if (isHighValueContext && amount > 0 && amount <= 150) {
+    amount = amount * 1000;
+  }
 
   // 2. Determine Transaction Type
   let type = 'expense'; // default
@@ -38,7 +55,10 @@ export function parseNaturalLanguageHisab(text) {
   else if (/credit card|card|cc/i.test(lower)) paymentMethod = 'Credit Card';
   else if (/netbanking|bank transfer|neft|rtgs|imps|account/i.test(lower)) paymentMethod = 'NetBanking';
   else if (/auto-debit|autodebit/i.test(lower)) paymentMethod = 'Auto-Debit';
-  else if (/gpay|google pay|phonepe|paytm|upi/i.test(lower)) paymentMethod = 'UPI';
+  else if (/paytm/i.test(lower)) paymentMethod = 'Paytm';
+  else if (/phonepe/i.test(lower)) paymentMethod = 'PhonePe';
+  else if (/gpay|google pay/i.test(lower)) paymentMethod = 'GPay';
+  else if (/upi/i.test(lower)) paymentMethod = 'UPI';
 
   // 4. Determine Category
   let category = 'Others';
@@ -65,8 +85,9 @@ export function parseNaturalLanguageHisab(text) {
   // 5. Clean Title Description
   let title = raw;
   title = title
-    .replace(/(?:rs\.?|₹|inr|rupaye|rupees)?\s*\d+(?:,\d+)*(?:\.\d+)?/gi, '')
+    .replace(/(?:rs\.?|₹|inr|rupaye|rupees)?\s*\d+(?:[\s,]\d+)*(?:\.\d{1,2})?/gi, '')
     .replace(/\b(spent|paid|bought|got|received|for|on|at|via|through|using|in|by|rupees|rupaye|rs|upi|gpay|phonepe|paytm|cash|credit card|card|netbanking|auto-debit|today|yesterday|pe|ka|ki|diya|kharcha|khareeda)\b/gi, '')
+    .replace(/[$₹€£]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -94,4 +115,33 @@ export function parseNaturalLanguageHisab(text) {
     date,
     notes: `AI Smart Entry: "${raw}"`
   };
+}
+
+export function parseMultipleHisabs(text) {
+  if (!text || typeof text !== 'string') return [];
+
+  const raw = text.trim();
+  if (!raw) return [];
+
+  // Split multi-transaction speech by clauses: comma, semicolon, newline, " and ", " also ", " aur ", " then ", " plus ", " & "
+  const chunks = raw
+    .split(/(?:\s*[\n;,]\s*|\s+(?:and|also|aur|then|plus|&)\s+)/i)
+    .map(c => c.trim())
+    .filter(Boolean);
+
+  const results = [];
+  for (const chunk of chunks) {
+    const item = parseNaturalLanguageHisab(chunk);
+    if (item) {
+      results.push(item);
+    }
+  }
+
+  // If chunk splitting didn't yield results, try parsing the whole raw string as single item
+  if (results.length === 0) {
+    const single = parseNaturalLanguageHisab(raw);
+    if (single) results.push(single);
+  }
+
+  return results;
 }

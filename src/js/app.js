@@ -1,11 +1,12 @@
 import { store } from './store.js';
-import { parseNaturalLanguageHisab } from './aiParser.js';
+import { parseNaturalLanguageHisab, parseMultipleHisabs } from './aiParser.js';
 import { renderDashboardView } from './components/dashboard.js';
 import { renderHisabView } from './components/hisab.js';
 import { renderLoansView } from './components/loans.js';
 import { renderInvestmentsView } from './components/investments.js';
 import { renderSalaryView } from './components/salary.js';
 import { renderBudgetsView } from './components/budgets.js';
+import { onCloudStatusChange, fullSyncToCloud } from './firebaseSync.js';
 
 let activeTab = 'dashboard';
 let currentMonthYear = getCurrentMonthYear();
@@ -18,6 +19,32 @@ function getCurrentMonthYear() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Listen to Firestore Cloud Connection Status
+  onCloudStatusChange((isConnected) => {
+    const badge = document.getElementById('cloudSyncBadge');
+    if (!badge) return;
+    if (isConnected) {
+      badge.style.background = 'rgba(16, 185, 129, 0.12)';
+      badge.style.color = 'var(--accent-success)';
+      badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+      badge.innerHTML = '<span style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-success); display: inline-block;"></span><span>Cloud Synced</span>';
+    } else {
+      badge.style.background = 'rgba(245, 158, 11, 0.12)';
+      badge.style.color = 'var(--accent-warning)';
+      badge.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+      badge.innerHTML = '<span style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-warning); display: inline-block;"></span><span>Local Mode</span>';
+    }
+  });
+
+  // Real-time Cloud Store Listener -> Debounced UI Re-render
+  let updateDebounceTimer = null;
+  window.onHisabStoreUpdate = () => {
+    if (updateDebounceTimer) clearTimeout(updateDebounceTimer);
+    updateDebounceTimer = setTimeout(() => {
+      renderCurrentTab();
+    }, 150);
+  };
+
   // Initialize Theme from store
   const updateThemeBtnText = () => {
     const themeBtn = document.getElementById('themeToggleBtn');
@@ -56,10 +83,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = aiInput.value.trim();
     if (!text) return;
 
-    const parsed = parseNaturalLanguageHisab(text);
-    if (parsed) {
-      store.addTransaction(parsed);
-      showToast(`✨ AI Saved: ${parsed.title} (₹${parsed.amount.toLocaleString('en-IN')}) via ${parsed.paymentMethod}`);
+    const items = parseMultipleHisabs(text);
+    if (items.length > 0) {
+      items.forEach(item => store.addTransaction(item));
+      showToast(`✨ AI Saved ${items.length} ${items.length > 1 ? 'Entries' : 'Entry'}!`);
       aiInput.value = '';
       renderCurrentTab();
     } else {
@@ -72,122 +99,313 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') processAISmartSave();
   });
 
-  // Speech Recognition Voice Feature & Voice Modal
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceTranscriptInput = document.getElementById('voiceTranscriptInput');
   const submitVoiceBtn = document.getElementById('submitVoiceBtn');
+  const toggleRecordBtn = document.getElementById('toggleRecordBtn');
+  const macDictationBtn = document.getElementById('macDictationBtn');
   const voiceStatusText = document.getElementById('voiceStatusText');
+
   let speechRecInstance = null;
   let audioContext = null;
   let micStream = null;
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
 
-  const handleVoiceSubmit = () => {
-    if (speechRecInstance) {
-      try { speechRecInstance.stop(); } catch (e) {}
-    }
-    if (micStream) {
-      try { micStream.getTracks().forEach(t => t.stop()); } catch (e) {}
-    }
+  const updateVoicePreview = () => {
     const text = voiceTranscriptInput?.value.trim();
-    if (!text) return;
+    const items = parseMultipleHisabs(text);
+    const previewEl = document.getElementById('voicePreviewItems');
+    if (!previewEl) return;
 
-    const parsed = parseNaturalLanguageHisab(text);
-    if (parsed) {
-      store.addTransaction(parsed);
-      showToast(`✨ AI Saved: ${parsed.title} (₹${parsed.amount.toLocaleString('en-IN')}) via ${parsed.paymentMethod}`);
-      closeModal('voiceModal');
-      if (voiceTranscriptInput) voiceTranscriptInput.value = '';
-      if (aiInput) aiInput.value = '';
-      renderCurrentTab();
+    if (items.length === 0) {
+      previewEl.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">No transactions detected yet... Speak e.g. "350 petrol, 500 grocery"</span>';
     } else {
-      showToast(`⚠️ Please include an amount (e.g. 'Paid 350 for lunch via UPI')`, 'warning');
+      previewEl.innerHTML = `
+        <div style="font-size: 11px; font-weight: 700; color: var(--accent-primary); margin-bottom: 6px;">
+          Found ${items.length} ${items.length > 1 ? 'Hisab Entries' : 'Entry'}:
+        </div>
+        ${items.map(item => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.08);">
+            <span>📌 <strong>${escapeHTML(item.title)}</strong> <span style="font-size: 10.5px; opacity: 0.8;">(${escapeHTML(item.category)})</span></span>
+            <span style="font-weight: 700; color: var(--accent-success);">₹${item.amount.toLocaleString('en-IN')} <span style="font-size: 10.5px; opacity: 0.8;">(${escapeHTML(item.paymentMethod)})</span></span>
+          </div>
+        `).join('')}
+      `;
     }
   };
 
-  submitVoiceBtn?.addEventListener('click', handleVoiceSubmit);
-  voiceTranscriptInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleVoiceSubmit();
+  voiceTranscriptInput?.addEventListener('input', updateVoicePreview);
+  voiceTranscriptInput?.addEventListener('keyup', updateVoicePreview);
+
+  macDictationBtn?.addEventListener('click', async () => {
+    if (voiceTranscriptInput) {
+      voiceTranscriptInput.focus();
+    }
+    if (window.electronAPI?.triggerDictation) {
+      await window.electronAPI.triggerDictation();
+    }
+    showToast('🎙️ System Dictation Triggered: Speak your transactions now!');
   });
 
-  aiVoiceBtn?.addEventListener('click', async () => {
-    openModal('voiceModal');
-    if (voiceTranscriptInput) {
-      voiceTranscriptInput.value = '';
-      setTimeout(() => voiceTranscriptInput.focus(), 150);
-    }
+  const stopAndTranscribe = () => {
+    console.log('[Voice] stopAndTranscribe called, isRecording:', isRecording);
+    if (!isRecording) return;
+    isRecording = false;
 
-    if (voiceStatusText) {
-      voiceStatusText.textContent = '🔴 Microphone Active! Speak your transaction sentence below:';
+    if (toggleRecordBtn) {
+      toggleRecordBtn.innerHTML = '🔴 Start Voice Recording';
+      toggleRecordBtn.className = 'btn btn-danger btn-sm';
     }
+    const micCircle = document.querySelector('.mic-circle');
+    if (micCircle) micCircle.style.transform = 'scale(1)';
 
-    // Connect Web Audio API to drive microphone visualizer
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      if (voiceStatusText) voiceStatusText.textContent = '⏳ Transcribing with Groq Whisper AI...';
+      console.log('[Voice] Calling mediaRecorder.stop(), state:', mediaRecorder.state);
+      mediaRecorder.stop();
+    } else {
+      console.log('[Voice] mediaRecorder not active:', mediaRecorder?.state);
+      if (voiceStatusText) voiceStatusText.textContent = '⚠️ No audio recorded.';
+    }
+  };
+
+  const startAudioRecording = async () => {
+    console.log('[Voice] startAudioRecording called');
+    audioChunks = [];
+    isRecording = false; // will set true after successful setup
+
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('[Voice] Got mic stream');
+
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm'].find(t =>
+        MediaRecorder.isTypeSupported(t)
+      );
+      console.log('[Voice] Using mimeType:', mimeType);
+
+      mediaRecorder = mimeType
+        ? new MediaRecorder(micStream, { mimeType })
+        : new MediaRecorder(micStream);
+      audioChunks = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        console.log('[Voice] ondataavailable, chunk size:', e.data.size);
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        console.log('[Voice] onstop fired, chunks:', audioChunks.length);
+
+        // Release mic
+        if (micStream) {
+          micStream.getTracks().forEach(t => t.stop());
+          micStream = null;
+        }
+        if (audioContext) {
+          try { audioContext.close(); } catch (e) {}
+          audioContext = null;
+        }
+
+        if (audioChunks.length === 0) {
+          console.log('[Voice] No audio chunks');
+          if (voiceStatusText) voiceStatusText.textContent = '⚠️ No audio captured. Try again.';
+          return;
+        }
+
+        const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        audioChunks = [];
+        console.log('[Voice] Audio blob size:', blob.size, 'type:', blob.type);
+
+        if (blob.size < 2000) {
+          if (voiceStatusText) voiceStatusText.textContent = '⚠️ Recording too short — speak longer.';
+          return;
+        }
+
+        if (voiceStatusText) voiceStatusText.textContent = '✨ Converting audio to WAV...';
+
+        // Convert WebM to 16kHz mono WAV for Groq (with 5s timeout)
+        let audioBuffer, audioMime;
+        try {
+          const wavPromise = (async () => {
+            const raw = await blob.arrayBuffer();
+            const ctx = new OfflineAudioContext(1, 1, 16000);
+            const decoded = await ctx.decodeAudioData(raw.slice(0)); // slice to avoid detached buffer
+            const n = decoded.length;
+            const mono = new Float32Array(n);
+            for (let c = 0; c < decoded.numberOfChannels; c++) {
+              const ch = decoded.getChannelData(c);
+              for (let i = 0; i < n; i++) mono[i] += ch[i] / decoded.numberOfChannels;
+            }
+            const wav = new DataView(new ArrayBuffer(44 + n * 2));
+            const wr = (off, s) => { for (let i = 0; i < s.length; i++) wav.setUint8(off + i, s.charCodeAt(i)); };
+            wr(0, 'RIFF'); wav.setUint32(4, 36 + n * 2, true); wr(8, 'WAVE');
+            wr(12, 'fmt '); wav.setUint32(16, 16, true); wav.setUint16(20, 1, true);
+            wav.setUint16(22, 1, true); wav.setUint32(24, 16000, true); wav.setUint32(28, 32000, true);
+            wav.setUint16(32, 2, true); wav.setUint16(34, 16, true);
+            wr(36, 'data'); wav.setUint32(40, n * 2, true);
+            for (let i = 0; i < n; i++) {
+              const s = Math.max(-1, Math.min(1, mono[i]));
+              wav.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+            }
+            return wav.buffer;
+          })();
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('WAV conversion timed out')), 5000)
+          );
+
+          audioBuffer = await Promise.race([wavPromise, timeoutPromise]);
+          audioMime = 'audio/wav';
+          console.log('[Voice] WAV conversion done, size:', audioBuffer.byteLength);
+        } catch (convErr) {
+          console.warn('[Voice] WAV conversion failed, sending raw WebM:', convErr.message);
+          audioBuffer = await blob.arrayBuffer();
+          audioMime = blob.type;
+        }
+
+        if (voiceStatusText) voiceStatusText.textContent = '✨ Sending to Groq Whisper AI...';
+
+        try {
+          if (!window.electronAPI?.transcribeAudio) {
+            console.error('[Voice] electronAPI.transcribeAudio not available!');
+            if (voiceStatusText) voiceStatusText.textContent = '❌ Transcription API not available.';
+            return;
+          }
+
+          console.log('[Voice] Calling transcribeAudio IPC, size:', audioBuffer.byteLength, 'mime:', audioMime);
+          const res = await window.electronAPI.transcribeAudio(audioBuffer, audioMime);
+          console.log('[Voice] IPC result:', JSON.stringify(res));
+
+          if (res && res.success && res.text) {
+            const cleanText = String(res.text || '').replace(/\$/g, '₹').replace(/\b(?:USD|dollars?|dollar)\b/gi, 'rupees').trim();
+            if (voiceTranscriptInput) {
+              voiceTranscriptInput.value = cleanText;
+              updateVoicePreview();
+            }
+            if (voiceStatusText) {
+              voiceStatusText.textContent = '✅ Transcribed! Click "Process & Save All" below.';
+            }
+          } else {
+            const errMsg = res?.error || "Couldn't transcribe — try speaking louder.";
+            console.warn('[Voice] Transcription failed:', errMsg);
+            if (voiceTranscriptInput && voiceTranscriptInput.value.trim()) {
+              updateVoicePreview();
+              if (voiceStatusText) {
+                voiceStatusText.textContent = '✅ Ready to process! Click "Process & Save All" below.';
+              }
+            } else if (voiceStatusText) {
+              voiceStatusText.textContent = `⚠️ ${errMsg}`;
+            }
+          }
+        } catch (err) {
+          console.error('[Voice] Transcription error:', err);
+          if (voiceTranscriptInput && voiceTranscriptInput.value.trim()) {
+            updateVoicePreview();
+            if (voiceStatusText) {
+              voiceStatusText.textContent = '✅ Text ready! Click "Process & Save All" below.';
+            }
+          } else if (voiceStatusText) {
+            voiceStatusText.textContent = '⚠️ Error — check internet and try again.';
+          }
+        }
+      };
+
+      // Record full audio (no timeslice = single complete WebM on stop)
+      mediaRecorder.start();
+      isRecording = true;
+      console.log('[Voice] MediaRecorder started, state:', mediaRecorder.state);
+
+      // Auto-stop after 30 seconds
+      setTimeout(() => {
+        if (isRecording && mediaRecorder?.state === 'recording') {
+          console.log('[Voice] Auto-stopping after 30s');
+          stopAndTranscribe();
+        }
+      }, 30000);
+
+      // Mic visualizer
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const source = audioContext.createMediaStreamSource(micStream);
       const analyser = audioContext.createAnalyser();
       source.connect(analyser);
       analyser.fftSize = 64;
-
       const micCircle = document.querySelector('.mic-circle');
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
       const updateVol = () => {
-        if (!document.getElementById('voiceModal')?.classList.contains('active')) return;
+        if (!isRecording) return;
         analyser.getByteFrequencyData(dataArray);
         const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
         if (micCircle) {
-          const scale = 1 + Math.min(avg / 128, 0.4);
-          micCircle.style.transform = `scale(${scale})`;
+          micCircle.style.transform = `scale(${1 + Math.min(avg / 100, 0.45)})`;
         }
         requestAnimationFrame(updateVol);
       };
       updateVol();
-    } catch (micErr) {
-      console.warn('Microphone hardware warning:', micErr);
-    }
 
-    if (SpeechRecognition) {
-      try {
-        if (speechRecInstance) {
-          try { speechRecInstance.abort(); } catch (e) {}
-        }
-        speechRecInstance = new SpeechRecognition();
-        speechRecInstance.continuous = false;
-        speechRecInstance.interimResults = true;
-        speechRecInstance.lang = 'en-IN';
-
-        speechRecInstance.onstart = () => {
-          if (voiceStatusText) voiceStatusText.textContent = '🎙️ Listening... Speak your transaction now!';
-        };
-
-        speechRecInstance.onresult = (event) => {
-          let transcript = '';
-          for (let i = 0; i < event.results.length; i++) {
-            transcript += event.results[i][0].transcript;
-          }
-          if (voiceTranscriptInput) voiceTranscriptInput.value = transcript;
-        };
-
-        speechRecInstance.onend = () => {
-          if (voiceTranscriptInput && voiceTranscriptInput.value.trim()) {
-            if (voiceStatusText) voiceStatusText.textContent = '✅ Speech captured! Click Process & Save below';
-          } else {
-            if (voiceStatusText) voiceStatusText.textContent = '🎙️ Microphone Ready! Speak (or use Mac Dictation) below:';
-          }
-        };
-
-        speechRecInstance.onerror = () => {
-          if (voiceStatusText) voiceStatusText.textContent = '🎙️ Microphone Ready! Speak (or use Mac Dictation) below:';
-        };
-
-        speechRecInstance.start();
-      } catch (err) {
-        if (voiceStatusText) voiceStatusText.textContent = '🎙️ Microphone Ready! Speak (or use Mac Dictation) below:';
+      if (toggleRecordBtn) {
+        toggleRecordBtn.innerHTML = '⏹️ Stop & Transcribe';
+        toggleRecordBtn.className = 'btn btn-danger btn-sm';
       }
-    } else {
-      if (voiceStatusText) voiceStatusText.textContent = '🎙️ Microphone Ready! Speak (or use Mac Dictation) below:';
+      if (voiceStatusText) {
+        voiceStatusText.textContent = '🔴 Recording... Speak now, then click "Stop & Transcribe"';
+      }
+    } catch (micErr) {
+      console.error('[Voice] Mic error:', micErr);
+      isRecording = false;
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+      }
+      if (voiceStatusText) {
+        voiceStatusText.textContent = '❌ Microphone denied — allow in System Settings.';
+      }
     }
+  };
+
+  const handleVoiceSubmit = () => {
+    const text = voiceTranscriptInput?.value.trim();
+    if (!text) {
+      showToast('⚠️ No text to save — record or type transactions first.', 'warning');
+      return;
+    }
+    const items = parseMultipleHisabs(text);
+    if (items.length > 0) {
+      items.forEach(item => store.addTransaction(item));
+      showToast(`✨ AI Saved ${items.length} ${items.length > 1 ? 'Hisab Entries' : 'Entry'} Successfully!`);
+      closeModal('voiceModal');
+      if (voiceTranscriptInput) voiceTranscriptInput.value = '';
+      if (aiInput) aiInput.value = '';
+      renderCurrentTab();
+    } else {
+      showToast(`⚠️ Please include amounts (e.g. 'Paid 350 for lunch')`, 'warning');
+    }
+  };
+
+  submitVoiceBtn?.addEventListener('click', handleVoiceSubmit);
+  voiceTranscriptInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleVoiceSubmit();
+    }
+  });
+
+  toggleRecordBtn?.addEventListener('click', () => {
+    if (isRecording) {
+      stopAndTranscribe();
+    } else {
+      startAudioRecording();
+    }
+  });
+
+  aiVoiceBtn?.addEventListener('click', () => {
+    openModal('voiceModal');
+    if (voiceTranscriptInput) voiceTranscriptInput.value = '';
+    updateVoicePreview();
+    if (isRecording) stopAndTranscribe();
+    startAudioRecording();
   });
 
   // Initialize Month Selector

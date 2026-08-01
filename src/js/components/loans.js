@@ -2,11 +2,14 @@ import { store } from '../store.js';
 
 export function renderLoansView(container, currentMonthYear) {
   const loans = store.getLoans();
+  const monthTxs = store.getTransactions(currentMonthYear);
+  const emiTxs = monthTxs.filter(t => t.type === 'emi' || t.category === 'EMI' || /loan|emi/i.test(t.title));
   const currency = store.data.currency || '₹';
 
   const totalPrincipal = loans.reduce((acc, l) => acc + (l.totalPrincipal || 0), 0);
   const totalRemaining = loans.reduce((acc, l) => acc + (l.remainingAmount || 0), 0);
-  const totalMonthlyEmi = loans.reduce((acc, l) => acc + (l.monthlyEmi || 0), 0);
+  const totalMonthlyEmiTarget = loans.reduce((acc, l) => acc + (l.monthlyEmi || 0), 0);
+  const monthEmisPaid = emiTxs.reduce((sum, t) => sum + t.amount, 0);
   const overallPaidPercent = totalPrincipal > 0 ? Math.round(((totalPrincipal - totalRemaining) / totalPrincipal) * 100) : 0;
 
   container.innerHTML = `
@@ -25,13 +28,13 @@ export function renderLoansView(container, currentMonthYear) {
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">Monthly EMI Commitment</span>
+          <span class="metric-title">Monthly EMI Paid (${currentMonthYear})</span>
           <div class="metric-icon-box" style="background: var(--accent-warning-light); color: var(--accent-warning);">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
         </div>
-        <div class="metric-value" style="color: var(--accent-warning);">${currency}${totalMonthlyEmi.toLocaleString('en-IN')}</div>
-        <div class="metric-sub">Across ${loans.length} active loan accounts</div>
+        <div class="metric-value" style="color: var(--accent-warning);">${currency}${monthEmisPaid.toLocaleString('en-IN')}</div>
+        <div class="metric-sub">${currency}${monthEmisPaid.toLocaleString('en-IN')} paid of ${currency}${totalMonthlyEmiTarget.toLocaleString('en-IN')} target</div>
       </div>
 
       <div class="metric-card">
@@ -45,6 +48,40 @@ export function renderLoansView(container, currentMonthYear) {
         <div class="progress-bar-bg" style="margin-top: 6px;">
           <div class="progress-bar-fill" style="width: ${overallPaidPercent}%; background: var(--grad-success);"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- Logged EMI Payments in current month -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Logged EMI Payments (${currentMonthYear})</h3>
+      </div>
+
+      <div class="table-responsive">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>EMI Description</th>
+              <th>Category</th>
+              <th>Payment Method</th>
+              <th>Amount Paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${emiTxs.length === 0 ? `
+              <tr><td colspan="5" class="empty-state">No EMI payments logged for ${currentMonthYear}. Use AI Voice or Quick Entry to record EMI payments!</td></tr>
+            ` : emiTxs.map(tx => `
+              <tr>
+                <td style="font-weight: 600;">${tx.date}</td>
+                <td><strong>${escapeHTML(tx.title)}</strong></td>
+                <td><span class="badge badge-warning">${escapeHTML(tx.category)}</span></td>
+                <td>${escapeHTML(tx.paymentMethod)}</td>
+                <td style="font-weight: 800; font-size: 14px; color: var(--accent-warning);">${currency}${tx.amount.toLocaleString('en-IN')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -74,7 +111,7 @@ export function renderLoansView(container, currentMonthYear) {
           </thead>
           <tbody>
             ${loans.length === 0 ? `
-              <tr><td colspan="8" class="empty-state">No loans or EMIs added yet. Click "+ Add New Loan / EMI" to start tracking.</td></tr>
+              <tr><td colspan="8" class="empty-state">No active loan accounts added yet. Click "+ Add New Loan / EMI" to create a loan schedule.</td></tr>
             ` : loans.map(loan => {
               const paidPercent = loan.totalPrincipal > 0 
                 ? Math.round(((loan.totalPrincipal - loan.remainingAmount) / loan.totalPrincipal) * 100) 
@@ -99,9 +136,13 @@ export function renderLoansView(container, currentMonthYear) {
                   </td>
                   <td style="text-align: right; min-width: 240px; white-space: nowrap;">
                     <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: nowrap;">
-                      <button class="btn btn-success btn-sm pay-emi-btn" data-id="${loan.id}">
-                        Record EMI (${currency}${loan.monthlyEmi.toLocaleString('en-IN')})
-                      </button>
+                      ${loan.remainingAmount > 0 ? `
+                        <button class="btn btn-warning btn-sm pay-emi-btn" data-id="${loan.id}">
+                          Record EMI (${currency}${loan.monthlyEmi.toLocaleString('en-IN')})
+                        </button>
+                      ` : `
+                        <span class="badge badge-success">Fully Paid</span>
+                      `}
                       <button class="btn btn-secondary btn-sm delete-loan-btn" data-id="${loan.id}" style="color: var(--accent-danger);">
                         Delete
                       </button>

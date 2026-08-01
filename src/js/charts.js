@@ -16,8 +16,14 @@ export function renderExpenseCategoryChart(canvasId, categoryData) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
+  // Destroy any existing Chart.js instance attached to this canvas
+  const existingChart = Chart.getChart(canvas);
+  if (existingChart) {
+    existingChart.destroy();
+  }
   if (expenseChartInstance) {
-    expenseChartInstance.destroy();
+    try { expenseChartInstance.destroy(); } catch (e) {}
+    expenseChartInstance = null;
   }
 
   const { textColor, borderColor } = getThemeColors();
@@ -46,14 +52,17 @@ export function renderExpenseCategoryChart(canvasId, categoryData) {
       }]
     },
     options: {
+      animation: { duration: 250 },
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          position: 'right',
+          position: 'bottom',
           labels: {
             color: textColor,
-            font: { family: 'Inter', size: 12 }
+            padding: 12,
+            boxWidth: 12,
+            font: { family: 'Inter', size: 11.5 }
           }
         },
         tooltip: {
@@ -75,8 +84,14 @@ export function renderCashFlowBarChart(canvasId, metrics) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
+  // Destroy any existing Chart.js instance attached to this canvas
+  const existingChart = Chart.getChart(canvas);
+  if (existingChart) {
+    existingChart.destroy();
+  }
   if (cashFlowChartInstance) {
-    cashFlowChartInstance.destroy();
+    try { cashFlowChartInstance.destroy(); } catch (e) {}
+    cashFlowChartInstance = null;
   }
 
   const { textColor, gridColor } = getThemeColors();
@@ -103,6 +118,7 @@ export function renderCashFlowBarChart(canvasId, metrics) {
       }]
     },
     options: {
+      animation: { duration: 250 },
       responsive: true,
       maintainAspectRatio: false,
       plugins: {

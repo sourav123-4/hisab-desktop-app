@@ -11,7 +11,8 @@
     "start": "electron .",
     "dist": "npm run build && electron-builder",
     "pack:mac": "npm run build && electron-builder --mac",
-    "pack:win": "npm run build && electron-builder --win"
+    "pack:win": "npm run build && electron-builder --win",
+    "pack:linux": "npm run build && electron-builder --linux AppImage deb"
   },
   "build": {
     "appId": "com.dailyhisab.app",
@@ -38,8 +39,32 @@
     "win": {
       "icon": "assets/icon.png",
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "category": "Office",
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ]
     }
   },
@@ -53,7 +78,10 @@
     "salary",
     "desktop-app"
   ],
-  "author": "Antigravity",
+  "author": {
+    "name": "Sourav Mahanty",
+    "email": "souravmahanty12@gmail.com"
+  },
   "license": "MIT",
   "devDependencies": {
     "electron": "^31.0.0",
@@ -62,6 +90,7 @@
   },
   "dependencies": {
     "chart.js": "^4.4.3",
+    "firebase": "^12.17.0",
     "lucide": "^0.395.0"
   }
 }

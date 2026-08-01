@@ -2,14 +2,18 @@ import { store } from '../store.js';
 
 export function renderInvestmentsView(container, currentMonthYear) {
   const investments = store.getInvestments();
+  const monthTxs = store.getTransactions(currentMonthYear);
+  const investmentTxs = monthTxs.filter(t => t.type === 'investment' || t.category === 'Investment' || /sip|invest/i.test(t.title));
   const currency = store.data.currency || '₹';
 
-  const totalInvested = investments.reduce((acc, i) => acc + (i.totalInvested || 0), 0);
+  const totalInvestedPortfolio = investments.reduce((acc, i) => acc + (i.totalInvested || 0), 0);
   const totalCurrentValue = investments.reduce((acc, i) => acc + (i.currentValue || 0), 0);
-  const totalMonthlySip = investments.reduce((acc, i) => acc + (i.monthlySip || 0), 0);
+  const totalMonthlySipTarget = investments.reduce((acc, i) => acc + (i.monthlySip || 0), 0);
 
-  const netGain = totalCurrentValue - totalInvested;
-  const gainPercent = totalInvested > 0 ? ((netGain / totalInvested) * 100).toFixed(2) : 0;
+  const monthInvestmentOutflow = investmentTxs.reduce((sum, t) => sum + t.amount, 0);
+  const totalInvested = totalInvestedPortfolio + monthInvestmentOutflow;
+  const netGain = totalCurrentValue - totalInvestedPortfolio;
+  const gainPercent = totalInvestedPortfolio > 0 ? ((netGain / totalInvestedPortfolio) * 100).toFixed(2) : 0;
   const isPositive = netGain >= 0;
 
   container.innerHTML = `
@@ -36,22 +40,56 @@ export function renderInvestmentsView(container, currentMonthYear) {
         <div class="metric-value" style="color: ${isPositive ? 'var(--accent-success)' : 'var(--accent-danger)'};">
           ${isPositive ? '+' : ''}${currency}${netGain.toLocaleString('en-IN')} (${gainPercent}%)
         </div>
-        <div class="metric-sub">Unrealized gains across investments</div>
+        <div class="metric-sub">Unrealized gains across holdings</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">Monthly SIP Outflow</span>
+          <span class="metric-title">Monthly Investment Outflow (${currentMonthYear})</span>
           <div class="metric-icon-box" style="background: var(--accent-purple-light); color: var(--accent-purple);">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
         </div>
-        <div class="metric-value" style="color: var(--accent-purple);">${currency}${totalMonthlySip.toLocaleString('en-IN')}</div>
-        <div class="metric-sub">Monthly systematic investments target</div>
+        <div class="metric-value" style="color: var(--accent-purple);">${currency}${monthInvestmentOutflow.toLocaleString('en-IN')}</div>
+        <div class="metric-sub">${investmentTxs.length} investment entry(s) logged for ${currentMonthYear}</div>
       </div>
     </div>
 
-    <!-- Investments Table -->
+    <!-- Logged Investment Transactions in current month -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Investment & SIP Outflow Entries (${currentMonthYear})</h3>
+      </div>
+
+      <div class="table-responsive">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Investment Description</th>
+              <th>Category</th>
+              <th>Payment Method</th>
+              <th>Amount Invested</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${investmentTxs.length === 0 ? `
+              <tr><td colspan="5" class="empty-state">No investment entries logged for ${currentMonthYear}. Use AI Voice or Quick Entry to add investments!</td></tr>
+            ` : investmentTxs.map(tx => `
+              <tr>
+                <td style="font-weight: 600;">${tx.date}</td>
+                <td><strong>${escapeHTML(tx.title)}</strong></td>
+                <td><span class="badge badge-purple">${escapeHTML(tx.category)}</span></td>
+                <td>${escapeHTML(tx.paymentMethod)}</td>
+                <td style="font-weight: 800; font-size: 14px; color: var(--accent-purple);">${currency}${tx.amount.toLocaleString('en-IN')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Investments Portfolio Table -->
     <div class="card">
       <div class="card-header">
         <div>
@@ -77,7 +115,7 @@ export function renderInvestmentsView(container, currentMonthYear) {
           </thead>
           <tbody>
             ${investments.length === 0 ? `
-              <tr><td colspan="8" class="empty-state">No investments logged yet. Click "+ Add Investment / SIP" to start tracking.</td></tr>
+              <tr><td colspan="8" class="empty-state">No holdings added yet. Click "+ Add Investment / SIP" to create a portfolio holding.</td></tr>
             ` : investments.map(inv => {
               const gain = inv.currentValue - inv.totalInvested;
               const roi = inv.totalInvested > 0 ? ((gain / inv.totalInvested) * 100).toFixed(1) : 0;

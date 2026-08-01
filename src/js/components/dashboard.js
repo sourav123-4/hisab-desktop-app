@@ -113,7 +113,7 @@ export function renderDashboardView(container, currentMonthYear) {
     <!-- Recent Transactions Table Card -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Recent Transactions & Hisab (${currentMonthYear})</span>
+        <span class="card-title">Recent Transactions & Hisab Ledger</span>
         <button class="btn btn-primary btn-sm" id="dashboardAddTxBtn">+ Add Hisab</button>
       </div>
 
@@ -130,38 +130,46 @@ export function renderDashboardView(container, currentMonthYear) {
             </tr>
           </thead>
           <tbody>
-            ${txs.length === 0 ? `
-              <tr>
-                <td colspan="6" class="empty-state">No transactions recorded for ${currentMonthYear}</td>
-              </tr>
-            ` : txs.slice(0, 7).map(tx => `
-              <tr>
-                <td>${tx.date}</td>
-                <td><strong>${escapeHTML(tx.title)}</strong> ${tx.notes ? `<div style="font-size: 11px; color: var(--text-muted);">${escapeHTML(tx.notes)}</div>` : ''}</td>
-                <td><span class="badge badge-info">${escapeHTML(tx.category)}</span></td>
-                <td>${escapeHTML(tx.paymentMethod)}</td>
-                <td>
-                  ${tx.type === 'income' ? '<span class="badge badge-success">Income</span>' : ''}
-                  ${tx.type === 'expense' ? '<span class="badge badge-danger">Expense</span>' : ''}
-                  ${tx.type === 'investment' ? '<span class="badge badge-purple">Investment</span>' : ''}
-                  ${tx.type === 'emi' ? '<span class="badge badge-warning">EMI</span>' : ''}
-                </td>
-                <td style="font-weight: 700; color: ${tx.type === 'income' ? 'var(--accent-success)' : 'var(--text-primary)'};">
-                  ${tx.type === 'income' ? '+' : '-'}${currency}${tx.amount.toLocaleString('en-IN')}
-                </td>
-              </tr>
-            `).join('')}
+            ${(() => {
+              const recentList = store.getRecentTransactions(7);
+              if (recentList.length === 0) {
+                return `
+                  <tr>
+                    <td colspan="6" class="empty-state">No transactions recorded yet. Use AI Voice or Quick Entry to add entries!</td>
+                  </tr>
+                `;
+              }
+              return recentList.map(tx => `
+                <tr>
+                  <td>${tx.date}</td>
+                  <td><strong>${escapeHTML(tx.title)}</strong> ${tx.notes ? `<div style="font-size: 11px; color: var(--text-muted);">${escapeHTML(tx.notes)}</div>` : ''}</td>
+                  <td><span class="badge badge-info">${escapeHTML(tx.category)}</span></td>
+                  <td>${escapeHTML(tx.paymentMethod)}</td>
+                  <td>
+                    ${tx.type === 'income' ? '<span class="badge badge-success">Income</span>' : ''}
+                    ${tx.type === 'expense' ? '<span class="badge badge-danger">Expense</span>' : ''}
+                    ${tx.type === 'investment' ? '<span class="badge badge-purple">Investment</span>' : ''}
+                    ${tx.type === 'emi' ? '<span class="badge badge-warning">EMI</span>' : ''}
+                  </td>
+                  <td style="font-weight: 700; color: ${tx.type === 'income' ? 'var(--accent-success)' : 'var(--text-primary)'};">
+                    ${tx.type === 'income' ? '+' : '-'}${currency}${tx.amount.toLocaleString('en-IN')}
+                  </td>
+                </tr>
+              `).join('');
+            })()}
           </tbody>
         </table>
       </div>
     </div>
   `;
 
-  // Render Charts after DOM injection
-  setTimeout(() => {
-    renderCashFlowBarChart('cashFlowCanvas', metrics);
-    renderExpenseCategoryChart('categoryExpenseCanvas', categoryData);
-  }, 50);
+  // Render Charts safely after DOM injection
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      renderCashFlowBarChart('cashFlowCanvas', metrics);
+      renderExpenseCategoryChart('categoryExpenseCanvas', categoryData);
+    });
+  });
 }
 
 function escapeHTML(str) {
