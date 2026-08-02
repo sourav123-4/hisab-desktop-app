@@ -49,15 +49,26 @@ class Store {
     this.activeUnsubscribers = [];
   }
 
+  getStorage() {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) return window.localStorage;
+      if (typeof localStorage !== 'undefined') return localStorage;
+    } catch (e) {}
+    return null;
+  }
+
   migrateGuestDataToUser(targetUserId) {
     try {
+      const storage = this.getStorage();
+      if (!storage) return;
+
       const guestKey = 'daily_hisab_app_data_v2';
-      const guestRaw = localStorage.getItem(guestKey);
+      const guestRaw = storage.getItem(guestKey);
       if (!guestRaw) return;
 
       const guestData = JSON.parse(guestRaw);
       const userKey = `daily_hisab_app_data_user_${targetUserId}`;
-      const userRaw = localStorage.getItem(userKey);
+      const userRaw = storage.getItem(userKey);
       const userData = userRaw ? JSON.parse(userRaw) : JSON.parse(JSON.stringify(sampleData));
 
       let hasNewItems = false;
@@ -113,12 +124,12 @@ class Store {
       }
 
       if (hasNewItems) {
-        localStorage.setItem(userKey, JSON.stringify(userData));
+        storage.setItem(userKey, JSON.stringify(userData));
         console.log(`[Store Migration] Successfully migrated guest items into user account (${targetUserId})`);
       }
 
       // Reset guest storage key to fresh empty state for future logouts
-      localStorage.setItem(guestKey, JSON.stringify(sampleData));
+      storage.setItem(guestKey, JSON.stringify(sampleData));
     } catch (err) {
       console.error('[Store Migration Error]', err);
     }
@@ -236,7 +247,8 @@ class Store {
   load() {
     try {
       const key = this.getStorageKey();
-      const raw = localStorage.getItem(key);
+      const storage = this.getStorage();
+      const raw = storage ? storage.getItem(key) : null;
       if (!raw) {
         const initialData = JSON.parse(JSON.stringify(sampleData));
         this.save(initialData);
@@ -252,7 +264,10 @@ class Store {
   save(data = this.data) {
     try {
       const key = this.getStorageKey();
-      localStorage.setItem(key, JSON.stringify(data));
+      const storage = this.getStorage();
+      if (storage) {
+        storage.setItem(key, JSON.stringify(data));
+      }
       this.data = data;
     } catch (e) {
       console.error('Failed saving data to localStorage', e);
@@ -306,7 +321,7 @@ class Store {
 
   addTransaction(tx) {
     const newTx = {
-      id: 'tx-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      id: tx.id || ('tx-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
       date: tx.date || new Date().toISOString().split('T')[0],
       title: tx.title,
       amount: parseFloat(tx.amount) || 0,
@@ -344,8 +359,8 @@ class Store {
       }
     }
 
-    // 2. Auto-sync EMI/Loans
-    if (newTx.type === 'emi' || newTx.category === 'EMI' || /loan|emi/i.test(newTx.title)) {
+    // 2. Auto-sync EMI/Loans (skip if already handled internally)
+    if (!tx.isInternalSync && (newTx.type === 'emi' || newTx.category === 'EMI' || /loan|emi/i.test(newTx.title))) {
       if (Array.isArray(this.data.loans) && this.data.loans.length > 0) {
         const matchingLoan = this.data.loans.find(l => 
           newTx.title.toLowerCase().includes(l.name.toLowerCase()) || 
@@ -360,8 +375,8 @@ class Store {
       }
     }
 
-    // 3. Auto-sync Investment/SIP
-    if (newTx.type === 'investment' || newTx.category === 'Investment' || /sip|invest|stocks|mutual fund/i.test(newTx.title)) {
+    // 3. Auto-sync Investment/SIP (skip if already handled internally)
+    if (!tx.isInternalSync && (newTx.type === 'investment' || newTx.category === 'Investment' || /sip|invest|stocks|mutual fund/i.test(newTx.title))) {
       if (Array.isArray(this.data.investments) && this.data.investments.length > 0) {
         const matchingInv = this.data.investments.find(i => 
           newTx.title.toLowerCase().includes(i.name.toLowerCase()) ||
@@ -393,7 +408,7 @@ class Store {
 
   addLoan(loan) {
     const newLoan = {
-      id: 'loan-' + Date.now(),
+      id: loan.id || ('loan-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
       name: loan.name,
       lender: loan.lender || '',
       totalPrincipal: parseFloat(loan.totalPrincipal) || 0,
@@ -433,7 +448,8 @@ class Store {
       category: 'EMI',
       type: 'emi',
       paymentMethod: 'Auto-Debit',
-      notes: `EMI Payment recorded for ${loan.lender}`
+      notes: `EMI Payment recorded for ${loan.lender}`,
+      isInternalSync: true
     });
   }
 
@@ -444,7 +460,7 @@ class Store {
 
   addInvestment(inv) {
     const newInv = {
-      id: 'inv-' + Date.now(),
+      id: inv.id || ('inv-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
       name: inv.name,
       category: inv.category || 'Mutual Funds',
       type: inv.type || 'SIP',
@@ -489,6 +505,10 @@ class Store {
   }
 
   // Salary & Income
+  getSalary() {
+    return this.data.salary;
+  }
+
   getSalaryRecords() {
     return this.data.salary;
   }
