@@ -1,5 +1,16 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup
+} from 'firebase/auth';
 import { 
   getFirestore, 
   collection, 
@@ -15,7 +26,6 @@ import {
 const STORAGE_KEY_FIREBASE_CONFIG = 'daily_hisab_firebase_custom_config';
 
 export function getStoredFirebaseConfig() {
-  // 1. Check custom user override in localStorage
   try {
     const custom = localStorage.getItem(STORAGE_KEY_FIREBASE_CONFIG);
     if (custom) {
@@ -24,7 +34,6 @@ export function getStoredFirebaseConfig() {
     }
   } catch (e) {}
 
-  // 2. Read from Vite Environment Variables (.env)
   const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {};
   return {
     apiKey: env.VITE_FIREBASE_API_KEY || '',
@@ -58,19 +67,59 @@ try {
   }
   db = getFirestore(app);
   auth = getAuth(app);
-
-  // Authenticate silently if unauthenticated
-  signInAnonymously(auth).then(() => {
-    console.log('[Firebase Auth] Signed in anonymously to taskmanager-bbf73');
-  }).catch((err) => {
-    if (err.code === 'auth/admin-restricted-operation') {
-      console.warn('[Firebase Auth] Anonymous sign-in is disabled in Firebase Console. Proceeding without auth token.');
-    } else {
-      console.warn('[Firebase Auth Warning]', err.message);
-    }
-  });
 } catch (err) {
   console.warn('[Firebase Init Warning]', err.message);
+}
+
+// Authentication Helpers
+export async function registerWithEmail(email, password, displayName = '') {
+  if (!auth) throw new Error('Firebase auth not initialized');
+  const userCred = await createUserWithEmailAndPassword(auth, email, password);
+  if (displayName && userCred.user) {
+    await updateProfile(userCred.user, { displayName });
+  }
+  return userCred.user;
+}
+
+export async function loginWithEmail(email, password) {
+  if (!auth) throw new Error('Firebase auth not initialized');
+  const userCred = await signInWithEmailAndPassword(auth, email, password);
+  return userCred.user;
+}
+
+export async function loginWithGoogle() {
+  if (!auth) throw new Error('Firebase auth not initialized');
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({
+    prompt: 'select_account'
+  });
+  const userCred = await signInWithPopup(auth, provider);
+  return userCred.user;
+}
+
+export async function logoutUser() {
+  if (!auth) return;
+  await signOut(auth);
+}
+
+export async function resetPassword(email) {
+  if (!auth) throw new Error('Firebase auth not initialized');
+  await sendPasswordResetEmail(auth, email);
+}
+
+export function getCurrentUser() {
+  return auth?.currentUser || null;
+}
+
+export function onAuthChange(callback) {
+  if (!auth) return () => {};
+  return onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      // Authenticate silently if anonymous fallback allowed
+      signInAnonymously(auth).catch(() => {});
+    }
+    callback(user);
+  });
 }
 
 export { 

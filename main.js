@@ -2,6 +2,7 @@ import { app, BrowserWindow, nativeImage, session, systemPreferences, ipcMain } 
 import { exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import http from 'http';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -9,22 +10,31 @@ const __dirname = path.dirname(__filename);
 
 // Load .env file automatically into process.env
 try {
-  const envPath = path.join(__dirname, '.env');
-  if (fs.existsSync(envPath)) {
-    const envConfig = fs.readFileSync(envPath, 'utf8');
-    envConfig.split(/\r?\n/).forEach(line => {
-      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
-      if (match) {
-        const key = match[1];
-        let value = match[2] || '';
-        if (value.length > 0 && value.startsWith('"') && value.endsWith('"')) {
-          value = value.substring(1, value.length - 1);
+  const possibleEnvPaths = [
+    path.join(__dirname, '.env'),
+    path.join(process.cwd(), '.env'),
+  ];
+  if (app && typeof app.getAppPath === 'function') {
+    possibleEnvPaths.push(path.join(app.getAppPath(), '.env'));
+  }
+  for (const envPath of possibleEnvPaths) {
+    if (fs.existsSync(envPath)) {
+      const envConfig = fs.readFileSync(envPath, 'utf8');
+      envConfig.split(/\r?\n/).forEach(line => {
+        const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+        if (match) {
+          const key = match[1];
+          let value = match[2] || '';
+          if (value.length > 0 && value.startsWith('"') && value.endsWith('"')) {
+            value = value.substring(1, value.length - 1);
+          }
+          if (!process.env[key]) {
+            process.env[key] = value.trim();
+          }
         }
-        if (!process.env[key]) {
-          process.env[key] = value.trim();
-        }
-      }
-    });
+      });
+      break;
+    }
   }
 } catch (e) {
   console.warn('Could not load .env file in main process:', e);
@@ -126,6 +136,67 @@ ipcMain.handle('transcribe-audio', async (event, arrayBuffer, mimeType) => {
   }
 });
 
+let localServerUrl = null;
+
+function startLocalServer() {
+  return new Promise((resolve) => {
+    const distDir = path.join(__dirname, 'dist');
+    const staticDir = fs.existsSync(distDir) ? distDir : __dirname;
+
+    const mimeTypes = {
+      '.html': 'text/html',
+      '.js': 'text/javascript',
+      '.cjs': 'text/javascript',
+      '.css': 'text/css',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
+      '.woff2': 'font/woff2'
+    };
+
+    const server = http.createServer((req, res) => {
+      let reqPath = req.url.split('?')[0];
+      if (reqPath === '/') reqPath = '/index.html';
+      
+      let filePath = path.join(staticDir, reqPath);
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        filePath = path.join(staticDir, 'index.html');
+      }
+
+      const ext = path.extname(filePath).toLowerCase();
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+      fs.readFile(filePath, (err, content) => {
+        if (err) {
+          res.writeHead(500);
+          res.end('Server Error');
+        } else {
+          res.writeHead(200, { 
+            'Content-Type': contentType,
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(content, 'utf-8');
+        }
+      });
+    });
+
+    server.listen(5173, '127.0.0.1', () => {
+      localServerUrl = 'http://localhost:5173';
+      console.log(`[Local Server] Serving Daily Hisab on ${localServerUrl}`);
+      resolve(localServerUrl);
+    }).on('error', () => {
+      server.listen(0, '127.0.0.1', () => {
+        const port = server.address().port;
+        localServerUrl = `http://localhost:${port}`;
+        console.log(`[Local Server] Serving Daily Hisab on ${localServerUrl}`);
+        resolve(localServerUrl);
+      });
+    });
+  });
+}
+
 function createWindow() {
   const iconPath = path.join(__dirname, 'assets/icon.png');
   const appIcon = nativeImage.createFromPath(iconPath);
@@ -135,6 +206,10 @@ function createWindow() {
       app.dock.setIcon(appIcon);
     } catch (e) { }
   }
+
+  const preloadPath = fs.existsSync(path.join(__dirname, 'preload.cjs'))
+    ? path.join(__dirname, 'preload.cjs')
+    : path.join(__dirname, 'preload.js');
 
   const mainWindow = new BrowserWindow({
     title: 'Daily Hisab',
@@ -146,16 +221,22 @@ function createWindow() {
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#0f172a',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
+      preload: preloadPath,
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false
     }
   });
 
-  // Check if running in development mode
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    return { action: 'allow' };
+  });
+
+  // Check if running in development mode or loaded via local server
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  } else if (localServerUrl) {
+    mainWindow.loadURL(localServerUrl);
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist/index.html')).catch(() => {
       mainWindow.loadFile(path.join(__dirname, 'index.html'));
@@ -175,6 +256,7 @@ app.whenReady().then(async () => {
   });
   session.defaultSession.setPermissionCheckHandler(() => true);
 
+  await startLocalServer();
   createWindow();
 
   app.on('activate', () => {

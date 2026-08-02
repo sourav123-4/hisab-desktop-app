@@ -11,16 +11,18 @@ export function parseNaturalLanguageHisab(text) {
   // Strip foreign currency symbols ($ € £ USD EUR GBP) & convert all amounts strictly to Rupees
   lower = lower.replace(/[$€£]/g, ' ').replace(/\b(usd|eur|gbp|dollars?|cents?)\b/gi, ' ');
 
-  // Normalize Hinglish shorthand numbers (e.g. 5k -> 5000, 20 hazar -> 20000, 1 lakh -> 100000)
+  // Normalize Hinglish shorthand numbers BEFORE extraction
+  // (e.g. 52k -> 52000, 52.5k -> 52500, 52 hazar -> 52000, 52 thousand -> 52000, 1.5 lakh -> 150000)
   lower = lower
-    .replace(/(\d+)\s*k\b/gi, (_, n) => `${parseFloat(n) * 1000}`)
-    .replace(/(\d+)\s*(?:hazar|thousand)/gi, (_, n) => `${parseFloat(n) * 1000}`)
-    .replace(/(\d+)\s*lakh/gi, (_, n) => `${parseFloat(n) * 100000}`);
+    .replace(/(\d+(?:\.\d+)?)\s*k\b/gi, (_, n) => `${parseFloat(n) * 1000}`)
+    .replace(/(\d+(?:\.\d+)?)\s*(?:hazar|hazhar|thousand|thousands)\b/gi, (_, n) => `${parseFloat(n) * 1000}`)
+    .replace(/(\d+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs)\b/gi, (_, n) => `${parseFloat(n) * 100000}`);
 
-  // Fix speech-to-text decimal artifacts (e.g. 52.00 -> 52000, 52.000 -> 52000)
-  lower = lower.replace(/(\d+)\.00\b/g, '$1000');
-  lower = lower.replace(/(\d+)\.(\d{3})\b/g, '$1$2');
-  lower = lower.replace(/(\d+)[\.,](\d{3})(?:[\.,]00)?\b/g, '$1$2');
+  // Fix speech-to-text formatting artifacts (e.g. "52,000", "52.000", "52000.00")
+  // Replace thousand separators like "52,000" or "52.000" -> "52000"
+  lower = lower.replace(/(\d+)[\.,](\d{3})(?!\d)/g, '$1$2');
+  // Clean decimal zero endings like "52000.00" -> "52000", "52.00" -> "52"
+  lower = lower.replace(/(\d+)\.00\b/g, '$1');
 
   // Remove trailing period at sentence end if after digits (e.g. '52000.' -> '52000')
   lower = lower.replace(/(\d+)\.(?!\d)/g, '$1');
@@ -34,7 +36,8 @@ export function parseNaturalLanguageHisab(text) {
   if (isNaN(amount) || amount <= 0) return null;
 
   // Auto-scale salary/income shorthand amounts (e.g., "salary 52" or "salary 50" -> 52000 / 50000)
-  const isHighValueContext = /salary|income|earned|paycheck|emi|loan|investment/i.test(lower);
+  // ONLY scale if the number is small (<= 150) and a high-value keyword is present.
+  const isHighValueContext = /salary|income|earned|paycheck|emi|loan|investment|rent/i.test(lower);
   if (isHighValueContext && amount > 0 && amount <= 150) {
     amount = amount * 1000;
   }
@@ -86,7 +89,7 @@ export function parseNaturalLanguageHisab(text) {
   let title = raw;
   title = title
     .replace(/(?:rs\.?|₹|inr|rupaye|rupees)?\s*\d+(?:[\s,]\d+)*(?:\.\d{1,2})?/gi, '')
-    .replace(/\b(spent|paid|bought|got|received|for|on|at|via|through|using|in|by|rupees|rupaye|rs|upi|gpay|phonepe|paytm|cash|credit card|card|netbanking|auto-debit|today|yesterday|pe|ka|ki|diya|kharcha|khareeda)\b/gi, '')
+    .replace(/\b(spent|paid|bought|got|received|for|on|at|via|through|using|in|by|rupees|rupaye|rs|upi|gpay|phonepe|paytm|cash|credit card|card|netbanking|auto-debit|today|yesterday|pe|ka|ki|diya|kharcha|khareeda|hazar|hazhar|thousand|thousands|lakh|lakhs|lac|lacs|k)\b/gi, '')
     .replace(/[$₹€£]/g, '')
     .replace(/\s+/g, ' ')
     .trim();

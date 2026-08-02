@@ -23,15 +23,33 @@ function updateCloudStatus(status) {
   syncListeners.forEach(cb => cb(isCloudConnected));
 }
 
+function getCollectionRef(collectionName) {
+  if (!db) return null;
+  const user = auth?.currentUser;
+  if (user && !user.isAnonymous) {
+    return collection(db, 'users', user.uid, collectionName);
+  }
+  return collection(db, collectionName);
+}
+
+function getDocRef(collectionName, id) {
+  if (!db || !collectionName || !id) return null;
+  const user = auth?.currentUser;
+  if (user && !user.isAnonymous) {
+    return doc(db, 'users', user.uid, collectionName, String(id));
+  }
+  return doc(db, collectionName, String(id));
+}
+
 // 1. Push Document to Firestore
 export async function saveToCloud(collectionName, id, data) {
-  if (!db || !collectionName || !id) return false;
+  const docRef = getDocRef(collectionName, id);
+  if (!docRef) return false;
   try {
-    const docRef = doc(db, collectionName, String(id));
     const currentUid = auth && auth.currentUser ? auth.currentUser.uid : 'anonymous';
     const payload = {
       ...data,
-      userId: data.userId || currentUid,
+      userId: currentUid,
       updatedAt: new Date().toISOString()
     };
     await setDoc(docRef, payload, { merge: true });
@@ -47,9 +65,9 @@ export async function saveToCloud(collectionName, id, data) {
 
 // 2. Delete Document from Firestore
 export async function deleteFromCloud(collectionName, id) {
-  if (!db || !collectionName || !id) return false;
+  const docRef = getDocRef(collectionName, id);
+  if (!docRef) return false;
   try {
-    const docRef = doc(db, collectionName, String(id));
     await deleteDoc(docRef);
     updateCloudStatus(true);
     console.log(`[Firestore Delete] Deleted ${collectionName}/${id}`);
@@ -63,9 +81,9 @@ export async function deleteFromCloud(collectionName, id) {
 
 // 3. Real-time Subscription to Firestore Collections
 export function subscribeToCloudCollection(collectionName, onUpdateCallback) {
-  if (!db || !collectionName) return () => {};
+  const colRef = getCollectionRef(collectionName);
+  if (!colRef) return () => {};
   try {
-    const colRef = collection(db, collectionName);
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       updateCloudStatus(true);
       const items = [];

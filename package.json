@@ -24,6 +24,8 @@
       "dist/**/*",
       "main.js",
       "preload.js",
+      "preload.cjs",
+      ".env",
       "src/**/*",
       "assets/**/*",
       "package.json"

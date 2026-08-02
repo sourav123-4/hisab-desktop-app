@@ -61,7 +61,28 @@ export function renderBudgetsView(container, currentMonthYear) {
       </div>
     </div>
 
-
+    <!-- Cloud Sync & Diagnostic Controls -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">Real-Time Cloud Sync & Diagnostics</h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Sync your Hisab data with Firebase Cloud Firestore or verify cloud connectivity.</p>
+        </div>
+      </div>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <button class="btn btn-secondary" id="manualCloudSyncBtn">
+          ⚡ Force Real-Time Cloud Sync
+        </button>
+        <!-- FCM / Cloud Test Diagnostic Box Commented Out
+        <button class="btn btn-secondary" id="testFirestoreBtn">
+          🔍 Test Cloud Firestore Connection
+        </button>
+        -->
+      </div>
+      <!--
+      <div id="firestoreTestOutput" style="display: none; margin-top: 14px; padding: 12px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; font-size: 12px; border: 1px solid rgba(255,255,255,0.1);"></div>
+      -->
+    </div>
 
     <!-- Data Backup & Reset Settings Section -->
     <div class="card">
@@ -101,7 +122,8 @@ export function renderBudgetsView(container, currentMonthYear) {
     }
   });
 
-  // Attach Test Firestore Listener
+  /*
+  // Attach Test Firestore Listener (Commented Out)
   container.querySelector('#testFirestoreBtn')?.addEventListener('click', async () => {
     const outBox = container.querySelector('#firestoreTestOutput');
     outBox.style.display = 'block';
@@ -135,6 +157,7 @@ export function renderBudgetsView(container, currentMonthYear) {
       outBox.innerHTML = `❌ <strong>Exception:</strong> ${err.message}`;
     }
   });
+  */
 
   // Attach Save Budget Listeners
   container.querySelectorAll('.save-budget-btn').forEach(btn => {
@@ -166,9 +189,11 @@ export function renderBudgetsView(container, currentMonthYear) {
     }
   });
 
-  container.querySelector('#resetSampleDataBtn')?.addEventListener('click', () => {
+  container.querySelector('#resetSampleDataBtn')?.addEventListener('click', async () => {
+    const btn = container.querySelector('#resetSampleDataBtn');
     if (confirm('Reset all transactions, loans, and investment data to default sample dataset?')) {
-      store.resetToSampleData();
+      if (btn) btn.textContent = '⏳ Resetting data...';
+      await store.resetToSampleData();
     }
   });
 }

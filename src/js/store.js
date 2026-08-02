@@ -27,18 +27,52 @@ const sampleData = {
 
 class Store {
   constructor() {
+    this.currentUserId = 'guest';
+    this.activeUnsubscribers = [];
     this.data = this.load();
     this.initCloudSubscriptions();
   }
 
+  getStorageKey() {
+    if (this.currentUserId && this.currentUserId !== 'guest') {
+      return `daily_hisab_app_data_user_${this.currentUserId}`;
+    }
+    return 'daily_hisab_app_data_v2';
+  }
+
+  clearCloudSubscriptions() {
+    if (Array.isArray(this.activeUnsubscribers)) {
+      this.activeUnsubscribers.forEach(unsub => {
+        try { if (typeof unsub === 'function') unsub(); } catch (e) {}
+      });
+    }
+    this.activeUnsubscribers = [];
+  }
+
+  switchUser(user) {
+    const newUid = (user && !user.isAnonymous) ? user.uid : 'guest';
+    if (this.currentUserId === newUid) return;
+
+    this.currentUserId = newUid;
+    this.clearCloudSubscriptions();
+    this.data = this.load();
+    this.initCloudSubscriptions();
+
+    if (user && !user.isAnonymous) {
+      fullSyncToCloud(this.data);
+    }
+    if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
+  }
+
   initCloudSubscriptions() {
+    this.clearCloudSubscriptions();
+
     // Subscribe to Firestore Transactions
-    subscribeToCloudCollection('transactions', (cloudTxs) => {
+    const unsubTx = subscribeToCloudCollection('transactions', (cloudTxs) => {
       if (Array.isArray(cloudTxs)) {
         const prevJson = JSON.stringify(this.data.transactions);
         const cloudIds = new Set(cloudTxs.map(t => t.id));
         const mergedMap = new Map();
-        // Include cloud transactions and local unsynced ones
         this.data.transactions.forEach(t => { if (cloudIds.has(t.id)) mergedMap.set(t.id, t); });
         cloudTxs.forEach(t => mergedMap.set(t.id, t));
         const newTxs = Array.from(mergedMap.values()).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -51,7 +85,7 @@ class Store {
     });
 
     // Subscribe to Firestore Salary
-    subscribeToCloudCollection('salary', (cloudSalary) => {
+    const unsubSal = subscribeToCloudCollection('salary', (cloudSalary) => {
       if (Array.isArray(cloudSalary)) {
         const prevJson = JSON.stringify(this.data.salary);
         const cloudIds = new Set(cloudSalary.map(s => s.id));
@@ -68,7 +102,7 @@ class Store {
     });
 
     // Subscribe to Firestore Loans
-    subscribeToCloudCollection('loans', (cloudLoans) => {
+    const unsubLoan = subscribeToCloudCollection('loans', (cloudLoans) => {
       if (Array.isArray(cloudLoans)) {
         const prevJson = JSON.stringify(this.data.loans);
         const cloudIds = new Set(cloudLoans.map(l => l.id));
@@ -85,7 +119,7 @@ class Store {
     });
 
     // Subscribe to Firestore Investments
-    subscribeToCloudCollection('investments', (cloudInvs) => {
+    const unsubInv = subscribeToCloudCollection('investments', (cloudInvs) => {
       if (Array.isArray(cloudInvs)) {
         const prevJson = JSON.stringify(this.data.investments);
         const cloudIds = new Set(cloudInvs.map(i => i.id));
@@ -100,14 +134,34 @@ class Store {
         }
       }
     });
+
+    // Subscribe to Firestore Settings / Budgets
+    const unsubSet = subscribeToCloudCollection('settings', (cloudSettings) => {
+      if (Array.isArray(cloudSettings)) {
+        const budgetObj = cloudSettings.find(s => s.categories || s.id === 'budgets');
+        if (budgetObj && budgetObj.categories) {
+          const prevJson = JSON.stringify(this.data.budgets);
+          const newJson = JSON.stringify(budgetObj.categories);
+          if (prevJson !== newJson) {
+            this.data.budgets = budgetObj.categories;
+            this.save(this.data);
+            if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
+          }
+        }
+      }
+    });
+
+    this.activeUnsubscribers.push(unsubTx, unsubSal, unsubLoan, unsubInv, unsubSet);
   }
 
   load() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const key = this.getStorageKey();
+      const raw = localStorage.getItem(key);
       if (!raw) {
-        this.save(sampleData);
-        return JSON.parse(JSON.stringify(sampleData));
+        const initialData = JSON.parse(JSON.stringify(sampleData));
+        this.save(initialData);
+        return initialData;
       }
       return JSON.parse(raw);
     } catch (e) {
@@ -118,7 +172,8 @@ class Store {
 
   save(data = this.data) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const key = this.getStorageKey();
+      localStorage.setItem(key, JSON.stringify(data));
       this.data = data;
     } catch (e) {
       console.error('Failed saving data to localStorage', e);
@@ -126,35 +181,37 @@ class Store {
   }
 
   async resetToSampleData() {
+    this.clearCloudSubscriptions();
+
     try {
-      // 1. Delete remote documents from Cloud Firestore
+      const deletePromises = [];
       if (Array.isArray(this.data.transactions)) {
-        for (const tx of this.data.transactions) {
-          await deleteFromCloud('transactions', tx.id);
-        }
+        this.data.transactions.forEach(tx => deletePromises.push(deleteFromCloud('transactions', tx.id)));
       }
       if (Array.isArray(this.data.salary)) {
-        for (const sal of this.data.salary) {
-          await deleteFromCloud('salary', sal.id);
-        }
+        this.data.salary.forEach(sal => deletePromises.push(deleteFromCloud('salary', sal.id)));
       }
       if (Array.isArray(this.data.loans)) {
-        for (const loan of this.data.loans) {
-          await deleteFromCloud('loans', loan.id);
-        }
+        this.data.loans.forEach(loan => deletePromises.push(deleteFromCloud('loans', loan.id)));
       }
       if (Array.isArray(this.data.investments)) {
-        for (const inv of this.data.investments) {
-          await deleteFromCloud('investments', inv.id);
-        }
+        this.data.investments.forEach(inv => deletePromises.push(deleteFromCloud('investments', inv.id)));
       }
+
+      await Promise.race([
+        Promise.all(deletePromises),
+        new Promise(resolve => setTimeout(resolve, 1500))
+      ]);
     } catch (err) {
       console.warn('Error clearing cloud data during reset:', err);
     }
 
-    // 2. Reset local store and reload
-    this.save(sampleData);
-    window.location.reload();
+    const freshData = JSON.parse(JSON.stringify(sampleData));
+    this.data = freshData;
+    this.save(freshData);
+    this.initCloudSubscriptions();
+
+    if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
   }
 
   // Transactions

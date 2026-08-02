@@ -6,6 +6,8 @@ import { renderLoansView } from './components/loans.js';
 import { renderInvestmentsView } from './components/investments.js';
 import { renderSalaryView } from './components/salary.js';
 import { renderBudgetsView } from './components/budgets.js';
+import { renderAuthModalHTML, initAuthModalListeners, updateAuthModalUI } from './components/authModal.js';
+import { onAuthChange } from './firebase.js';
 import { onCloudStatusChange, fullSyncToCloud } from './firebaseSync.js';
 
 let activeTab = 'dashboard';
@@ -19,6 +21,44 @@ function getCurrentMonthYear() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Inject Auth Modal into DOM
+  const modalWrap = document.createElement('div');
+  modalWrap.innerHTML = renderAuthModalHTML();
+  document.body.appendChild(modalWrap.firstElementChild);
+  initAuthModalListeners();
+
+  // Listen to Firebase Auth State Changes
+  onAuthChange((user) => {
+    updateAuthModalUI(user);
+    store.switchUser(user);
+
+    const userNameEl = document.getElementById('sidebarUserName');
+    const userSubEl = document.getElementById('sidebarUserSub');
+    const avatarEl = document.getElementById('sidebarAvatar');
+
+    if (user && !user.isAnonymous) {
+      const name = user.displayName || user.email?.split('@')[0] || 'User Account';
+      const email = user.email || '';
+      const initial = name.charAt(0).toUpperCase();
+
+      if (userNameEl) userNameEl.textContent = name;
+      if (userSubEl) userSubEl.textContent = email;
+      if (avatarEl) avatarEl.textContent = initial;
+    } else {
+      if (userNameEl) userNameEl.textContent = 'Sign In / Account';
+      if (userSubEl) userSubEl.textContent = 'Cloud Sync Account';
+      if (avatarEl) avatarEl.textContent = '🔑';
+    }
+  });
+
+  // Open Auth Modal when clicking Sidebar User Profile or Cloud Badge
+  document.getElementById('sidebarUserProfile')?.addEventListener('click', () => {
+    document.getElementById('authModal')?.classList.add('active');
+  });
+  document.getElementById('cloudSyncBadge')?.addEventListener('click', () => {
+    document.getElementById('authModal')?.classList.add('active');
+  });
+
   // Listen to Firestore Cloud Connection Status
   onCloudStatusChange((isConnected) => {
     const badge = document.getElementById('cloudSyncBadge');
@@ -268,15 +308,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (voiceStatusText) voiceStatusText.textContent = '✨ Sending to Groq Whisper AI...';
 
         try {
-          if (!window.electronAPI?.transcribeAudio) {
-            console.error('[Voice] electronAPI.transcribeAudio not available!');
-            if (voiceStatusText) voiceStatusText.textContent = '❌ Transcription API not available.';
-            return;
+          let res;
+          if (window.electronAPI?.transcribeAudio) {
+            console.log('[Voice] Calling transcribeAudio IPC, size:', audioBuffer.byteLength, 'mime:', audioMime);
+            res = await window.electronAPI.transcribeAudio(audioBuffer, audioMime);
+            console.log('[Voice] IPC result:', JSON.stringify(res));
+          } else {
+            console.warn('[Voice] electronAPI.transcribeAudio not available, trying direct fetch fallback...');
+            const GROQ_KEY = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_GROQ_API_KEY : undefined;
+            if (GROQ_KEY) {
+              const baseMime = String(audioMime || 'audio/wav').split(';')[0].trim();
+              const form = new FormData();
+              form.append('file', new Blob([audioBuffer], { type: baseMime }), 'audio.wav');
+              form.append('model', 'whisper-large-v3-turbo');
+              form.append('response_format', 'json');
+              form.append('temperature', '0');
+              const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${GROQ_KEY}` },
+                body: form
+              });
+              if (response.ok) {
+                const data = await response.json();
+                res = { success: true, text: data.text };
+              } else {
+                const errText = await response.text().catch(() => '');
+                res = { success: false, error: `Direct API failed (${response.status})` };
+              }
+            } else {
+              res = { success: false, error: 'Transcription API not available.' };
+            }
           }
-
-          console.log('[Voice] Calling transcribeAudio IPC, size:', audioBuffer.byteLength, 'mime:', audioMime);
-          const res = await window.electronAPI.transcribeAudio(audioBuffer, audioMime);
-          console.log('[Voice] IPC result:', JSON.stringify(res));
 
           if (res && res.success && res.text) {
             const cleanText = String(res.text || '').replace(/\$/g, '₹').replace(/\b(?:USD|dollars?|dollar)\b/gi, 'rupees').trim();
