@@ -23,22 +23,31 @@ function updateCloudStatus(status) {
   syncListeners.forEach(cb => cb(isCloudConnected));
 }
 
+function getSafeUid() {
+  const user = auth?.currentUser;
+  if (user && !user.isAnonymous && user.uid) {
+    return String(user.uid).replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+  return null;
+}
+
 function getCollectionRef(collectionName) {
   if (!db) return null;
-  const user = auth?.currentUser;
-  if (user && !user.isAnonymous) {
-    return collection(db, 'users', user.uid, collectionName);
+  const safeUid = getSafeUid();
+  if (safeUid) {
+    return collection(db, 'users', safeUid, collectionName);
   }
   return collection(db, collectionName);
 }
 
 function getDocRef(collectionName, id) {
   if (!db || !collectionName || !id) return null;
-  const user = auth?.currentUser;
-  if (user && !user.isAnonymous) {
-    return doc(db, 'users', user.uid, collectionName, String(id));
+  const safeUid = getSafeUid();
+  const safeId = String(id).replace(/\//g, '_');
+  if (safeUid) {
+    return doc(db, 'users', safeUid, collectionName, safeId);
   }
-  return doc(db, collectionName, String(id));
+  return doc(db, collectionName, safeId);
 }
 
 // 1. Push Document to Firestore

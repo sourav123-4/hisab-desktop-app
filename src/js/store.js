@@ -49,9 +49,88 @@ class Store {
     this.activeUnsubscribers = [];
   }
 
+  migrateGuestDataToUser(targetUserId) {
+    try {
+      const guestKey = 'daily_hisab_app_data_v2';
+      const guestRaw = localStorage.getItem(guestKey);
+      if (!guestRaw) return;
+
+      const guestData = JSON.parse(guestRaw);
+      const userKey = `daily_hisab_app_data_user_${targetUserId}`;
+      const userRaw = localStorage.getItem(userKey);
+      const userData = userRaw ? JSON.parse(userRaw) : JSON.parse(JSON.stringify(sampleData));
+
+      let hasNewItems = false;
+
+      // 1. Merge Guest Transactions
+      if (Array.isArray(guestData.transactions) && guestData.transactions.length > 0) {
+        const existingTxIds = new Set((userData.transactions || []).map(t => t.id));
+        guestData.transactions.forEach(t => {
+          if (!existingTxIds.has(t.id)) {
+            userData.transactions.unshift(t);
+            hasNewItems = true;
+          }
+        });
+      }
+
+      // 2. Merge Guest Salary
+      if (Array.isArray(guestData.salary) && guestData.salary.length > 0) {
+        const existingSalIds = new Set((userData.salary || []).map(s => s.id));
+        guestData.salary.forEach(s => {
+          if (!existingSalIds.has(s.id)) {
+            userData.salary.unshift(s);
+            hasNewItems = true;
+          }
+        });
+      }
+
+      // 3. Merge Guest Loans
+      if (Array.isArray(guestData.loans) && guestData.loans.length > 0) {
+        const existingLoanIds = new Set((userData.loans || []).map(l => l.id));
+        guestData.loans.forEach(l => {
+          if (!existingLoanIds.has(l.id)) {
+            userData.loans.push(l);
+            hasNewItems = true;
+          }
+        });
+      }
+
+      // 4. Merge Guest Investments
+      if (Array.isArray(guestData.investments) && guestData.investments.length > 0) {
+        const existingInvIds = new Set((userData.investments || []).map(i => i.id));
+        guestData.investments.forEach(i => {
+          if (!existingInvIds.has(i.id)) {
+            userData.investments.push(i);
+            hasNewItems = true;
+          }
+        });
+      }
+
+      // 5. Merge Guest Budgets
+      if (guestData.budgets) {
+        userData.budgets = { ...userData.budgets, ...guestData.budgets };
+        hasNewItems = true;
+      }
+
+      if (hasNewItems) {
+        localStorage.setItem(userKey, JSON.stringify(userData));
+        console.log(`[Store Migration] Successfully migrated guest items into user account (${targetUserId})`);
+      }
+
+      // Reset guest storage key to fresh empty state for future logouts
+      localStorage.setItem(guestKey, JSON.stringify(sampleData));
+    } catch (err) {
+      console.error('[Store Migration Error]', err);
+    }
+  }
+
   switchUser(user) {
     const newUid = (user && !user.isAnonymous) ? user.uid : 'guest';
     if (this.currentUserId === newUid) return;
+
+    if (this.currentUserId === 'guest' && newUid !== 'guest') {
+      this.migrateGuestDataToUser(newUid);
+    }
 
     this.currentUserId = newUid;
     this.clearCloudSubscriptions();
