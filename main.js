@@ -1,9 +1,10 @@
-import { app, BrowserWindow, nativeImage, session, systemPreferences, ipcMain } from 'electron';
-import { exec } from 'child_process';
+import { app, BrowserWindow, nativeImage, session, systemPreferences, ipcMain, shell } from 'electron';
+import { exec, execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
 import { fileURLToPath } from 'url';
+import { createHash, randomBytes } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,11 +62,11 @@ ipcMain.handle('trigger-dictation', async () => {
 
 ipcMain.handle('transcribe-audio', async (event, arrayBuffer, mimeType) => {
   const GROQ_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
-  const GROQ_KEY = process.env.GROQ_API_KEY;
+  const GROQ_KEY = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
 
   if (!GROQ_KEY) {
-    console.warn('GROQ_API_KEY not set in .env');
-    return { success: false, error: 'GROQ_API_KEY is not defined in .env file' };
+    console.warn('GROQ_API_KEY not set');
+    return { success: false, error: 'GROQ_API_KEY is missing.' };
   }
 
   // Extension map — Groq infers format from filename extension
@@ -137,6 +138,112 @@ ipcMain.handle('transcribe-audio', async (event, arrayBuffer, mimeType) => {
 });
 
 let localServerUrl = null;
+let mainWindow = null;
+let pendingGoogleOAuth = null;
+
+function base64Url(buffer) {
+  return Buffer.from(buffer)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function isAllowedAuthUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const isLocalAuthHelper = (
+      (host === 'localhost' || host === '127.0.0.1') &&
+      parsed.pathname === '/google-auth.html'
+    );
+    return parsed.protocol === 'https:' && (
+      host === 'accounts.google.com' ||
+      host.endsWith('.google.com') ||
+      host.endsWith('.googleusercontent.com') ||
+      host.endsWith('.firebaseapp.com')
+    ) || (parsed.protocol === 'http:' && isLocalAuthHelper);
+  } catch (e) {
+    return false;
+  }
+}
+
+function openUrlInChrome(url) {
+  return new Promise((resolve) => {
+    const fallback = () => shell.openExternal(url).then(resolve).catch(resolve);
+
+    if (process.platform === 'darwin') {
+      execFile('open', ['-a', 'Google Chrome', url], (err) => {
+        if (err) fallback();
+        else resolve();
+      });
+      return;
+    }
+
+    if (process.platform === 'win32') {
+      execFile('cmd', ['/c', 'start', '', 'chrome', url], (err) => {
+        if (err) fallback();
+        else resolve();
+      });
+      return;
+    }
+
+    execFile('google-chrome', [url], (err) => {
+      if (err) fallback();
+      else resolve();
+    });
+  });
+}
+
+ipcMain.handle('open-external-url', async (event, url) => {
+  if (!url) return false;
+  if (!isAllowedAuthUrl(url)) {
+    console.warn(`[External URL Blocked] ${url}`);
+    return false;
+  }
+  await openUrlInChrome(url);
+  return true;
+});
+
+ipcMain.handle('get-auth-callback-url', async () => {
+  return `${localServerUrl || 'http://localhost:5173'}/api/auth-callback`;
+});
+
+ipcMain.handle('start-google-oauth', async (event, options = {}) => {
+  const clientId = String(options.clientId || '').trim();
+  if (!clientId || !clientId.endsWith('.apps.googleusercontent.com')) {
+    throw new Error('Google OAuth client id missing. Add VITE_GOOGLE_CLIENT_ID in .env.');
+  }
+
+  const redirectUri = `${localServerUrl || 'http://localhost:5173'}/api/auth-callback`;
+  const state = base64Url(randomBytes(24));
+  const codeVerifier = base64Url(randomBytes(64));
+  const codeChallenge = base64Url(createHash('sha256').update(codeVerifier).digest());
+
+  const clientSecret = String(options.clientSecret || process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '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').trim();
+
+  pendingGoogleOAuth = {
+    clientId,
+    clientSecret,
+    redirectUri,
+    state,
+    codeVerifier,
+    webContents: event.sender
+  };
+
+  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', 'openid email profile');
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('code_challenge', codeChallenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+  authUrl.searchParams.set('prompt', 'select_account');
+
+  await openUrlInChrome(authUrl.toString());
+  return true;
+});
 
 function startLocalServer() {
   return new Promise((resolve) => {
@@ -156,11 +263,155 @@ function startLocalServer() {
       '.woff2': 'font/woff2'
     };
 
-    const server = http.createServer((req, res) => {
-      let reqPath = req.url.split('?')[0];
+    const server = http.createServer(async (req, res) => {
+      const urlObj = new URL(req.url, 'http://127.0.0.1');
+      let reqPath = urlObj.pathname;
+
+      // Handle OAuth Loopback Callback from System Browser
+      if (reqPath === '/api/auth-callback') {
+        const code = urlObj.searchParams.get('code');
+        const state = urlObj.searchParams.get('state');
+        const oauthError = urlObj.searchParams.get('error');
+
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', async () => {
+          let payload = {};
+          try {
+            payload = JSON.parse(body || '{}');
+          } catch (e) {}
+
+          const idToken = payload.idToken || urlObj.searchParams.get('id_token') || urlObj.searchParams.get('idToken');
+          const accessToken = payload.accessToken || urlObj.searchParams.get('access_token') || urlObj.searchParams.get('accessToken');
+
+          const sendResponsePage = (ok, msg) => {
+            res.writeHead(ok ? 200 : 400, {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Access-Control-Allow-Origin': '*'
+            });
+            res.end(`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>Google Sign-In - Daily Hisab</title>
+                <style>
+                  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+                  .card { background: #1e293b; padding: 40px; border-radius: 16px; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); max-width: 440px; }
+                  h2 { color: ${ok ? '#10b981' : '#ef4444'}; margin: 0 0 8px 0; }
+                  p { color: #94a3b8; font-size: 14px; line-height: 1.5; margin: 0; }
+                </style>
+              </head>
+              <body>
+                <div class="card">
+                  <div style="font-size: 48px; margin-bottom: 12px;">${ok ? '✅' : '⚠️'}</div>
+                  <h2>${ok ? 'Signed In Successfully' : 'Sign-In Failed'}</h2>
+                  <p>${msg}</p>
+                </div>
+                <script>
+                  (function() {
+                    const hash = window.location.hash ? window.location.hash.substring(1) : '';
+                    const query = window.location.search ? window.location.search.substring(1) : '';
+                    const params = new URLSearchParams(hash || query);
+                    const idToken = params.get('id_token') || params.get('idToken');
+                    const accessToken = params.get('access_token') || params.get('accessToken');
+
+                    if (idToken || accessToken) {
+                      fetch('/api/auth-callback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ idToken: idToken, accessToken: accessToken })
+                      }).finally(() => {
+                        setTimeout(() => { try { window.close(); } catch(e) {} }, 1200);
+                      });
+                    } else {
+                      setTimeout(() => { try { window.close(); } catch(e) {} }, ${ok ? 1500 : 5000});
+                    }
+                  })();
+                </script>
+              </body>
+              </html>
+            `);
+          };
+
+          if (idToken || accessToken) {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('google-auth-callback', { idToken, accessToken, ...payload });
+              mainWindow.show();
+              mainWindow.focus();
+            }
+            sendResponsePage(true, 'Google authentication complete. Return to Daily Hisab Desktop App.');
+            return;
+          }
+
+          if (oauthError) {
+            const errDesc = urlObj.searchParams.get('error_description') || oauthError;
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('google-auth-callback', { error: errDesc });
+            }
+            sendResponsePage(false, errDesc);
+            return;
+          }
+
+          if (code && pendingGoogleOAuth && state === pendingGoogleOAuth.state) {
+            try {
+              const tokenParams = {
+                client_id: pendingGoogleOAuth.clientId,
+                code,
+                code_verifier: pendingGoogleOAuth.codeVerifier,
+                grant_type: 'authorization_code',
+                redirect_uri: pendingGoogleOAuth.redirectUri
+              };
+              const clientSecret = pendingGoogleOAuth.clientSecret || process.env.GOOGLE_CLIENT_SECRET || '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';
+              if (clientSecret) tokenParams.client_secret = clientSecret;
+
+              const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(tokenParams)
+              });
+
+              const tokenPayload = await tokenRes.json().catch(() => ({}));
+              if (!tokenRes.ok || !tokenPayload.id_token) {
+                throw new Error(tokenPayload.error_description || tokenPayload.error || `Google token exchange failed (${tokenRes.status})`);
+              }
+
+              const targetWebContents = pendingGoogleOAuth.webContents;
+              pendingGoogleOAuth = null;
+
+              if (targetWebContents && !targetWebContents.isDestroyed()) {
+                targetWebContents.send('google-auth-callback', {
+                  idToken: tokenPayload.id_token,
+                  accessToken: tokenPayload.access_token || null
+                });
+              }
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.show();
+                mainWindow.focus();
+              }
+              sendResponsePage(true, 'Google authentication complete. Return to Daily Hisab Desktop App.');
+              return;
+            } catch (err) {
+              console.error('[Google Code Exchange Error]', err);
+              pendingGoogleOAuth = null;
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('google-auth-callback', { error: err.message });
+              }
+              sendResponsePage(false, err.message);
+              return;
+            }
+          }
+
+          sendResponsePage(true, 'Google authentication complete. Return to Daily Hisab Desktop App.');
+        });
+        return;
+      }
+
       if (reqPath === '/') reqPath = '/index.html';
       
       let filePath = path.join(staticDir, reqPath);
+      if (!fs.existsSync(filePath) && reqPath === '/google-auth.html') {
+        filePath = path.join(__dirname, 'google-auth.html');
+      }
       if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
         filePath = path.join(staticDir, 'index.html');
       }
@@ -211,7 +462,9 @@ function createWindow() {
     ? path.join(__dirname, 'preload.cjs')
     : path.join(__dirname, 'preload.js');
 
-  const mainWindow = new BrowserWindow({
+  const customUserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+
+  mainWindow = new BrowserWindow({
     title: 'Daily Hisab',
     icon: appIcon,
     width: 1100,
@@ -224,12 +477,25 @@ function createWindow() {
       preload: preloadPath,
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false
+      sandbox: false,
+      userAgent: customUserAgent
     }
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    return { action: 'allow' };
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        width: 500,
+        height: 650,
+        autoHideMenuBar: true,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          userAgent: customUserAgent
+        }
+      }
+    };
   });
 
   // Check if running in development mode or loaded via local server
@@ -250,6 +516,9 @@ app.whenReady().then(async () => {
       await systemPreferences.askForMediaAccess('microphone');
     } catch (e) {}
   }
+
+  const customUserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+  session.defaultSession.setUserAgent(customUserAgent);
 
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(true);

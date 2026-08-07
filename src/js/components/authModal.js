@@ -163,7 +163,7 @@ export function initAuthModalListeners() {
     });
   });
 
-  const formatAuthError = (err) => {
+  const formatAuthError = (err, type = 'email') => {
     const code = err?.code || '';
     if (code === 'auth/unauthorized-domain') {
       return '⚠️ Authorized Domain Required: Go to Firebase Console → Authentication → Settings → Authorized domains and add "localhost" & "127.0.0.1".';
@@ -171,11 +171,17 @@ export function initAuthModalListeners() {
     if (code === 'auth/popup-closed-by-user') {
       return '⚠️ Google Sign-In popup was closed before completing.';
     }
+    if (code === 'auth/operation-not-allowed') {
+      return '⚠️ Google Provider Disabled: Please enable Google in Firebase Console → Authentication → Sign-in method.';
+    }
+    if (type === 'google' && (code === 'auth/invalid-credential' || code === 'auth/user-disabled')) {
+      return `⚠️ Google Sign-In failed (${code || 'invalid credential'}). Check Firebase Console → Auth settings.`;
+    }
     if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-      return '⚠️ Invalid email or password. Please check your credentials.';
+      return '⚠️ Invalid email or password. If you do not have an account yet, click "Create Account" tab.';
     }
     if (code === 'auth/email-already-in-use') {
-      return '⚠️ This email is already registered. Please sign in instead.';
+      return '⚠️ This email is already registered. Please click "Sign In" tab instead.';
     }
     return String(err?.message || 'Authentication failed').replace(/^Firebase:\s*/i, '');
   };
@@ -243,7 +249,7 @@ export function initAuthModalListeners() {
       modal.classList.remove('active');
     } catch (err) {
       console.error('[Google Auth Error]', err);
-      showAlert(formatAuthError(err));
+      showAlert(formatAuthError(err, 'google'));
     }
   });
 

@@ -121,14 +121,14 @@ export function renderHisabView(container, currentMonthYear) {
     });
 
     tbody.innerHTML = renderTableRows(filtered, currency);
-    attachDeleteListeners(tbody, currentMonthYear, container);
+    attachActionListeners(tbody, currentMonthYear, container, txs);
   };
 
   searchInput.addEventListener('input', filterRows);
   catFilter.addEventListener('change', filterRows);
   typeFilter.addEventListener('change', filterRows);
 
-  attachDeleteListeners(tbody, currentMonthYear, container);
+  attachActionListeners(tbody, currentMonthYear, container, txs);
 }
 
 function renderTableRows(txs, currency) {
@@ -154,14 +154,43 @@ function renderTableRows(txs, currency) {
       <td style="font-weight: 700; font-size: 14px; color: ${tx.type === 'income' ? 'var(--accent-success)' : 'var(--text-primary)'};">
         ${tx.type === 'income' ? '+' : '-'}${currency}${tx.amount.toLocaleString('en-IN')}
       </td>
-      <td style="text-align: right;">
+      <td style="text-align: right; min-width: 140px; white-space: nowrap;">
+        <button class="btn btn-secondary btn-sm edit-tx-btn" data-id="${tx.id}" style="margin-right: 6px;">✏️ Edit</button>
         <button class="btn btn-secondary btn-sm delete-tx-btn" data-id="${tx.id}" style="color: var(--accent-danger); border-color: rgba(239, 68, 68, 0.3);">Delete</button>
       </td>
     </tr>
   `).join('');
 }
 
-function attachDeleteListeners(tbody, currentMonthYear, container) {
+function attachActionListeners(tbody, currentMonthYear, container, txs) {
+  // Edit Listener
+  tbody.querySelectorAll('.edit-tx-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      const tx = txs.find(t => t.id === id);
+      if (!tx) return;
+
+      const form = document.getElementById('txForm');
+      if (!form) return;
+
+      form.dataset.editingId = tx.id;
+      document.getElementById('txTitle').value = tx.title || '';
+      document.getElementById('txAmount').value = tx.amount || '';
+      document.getElementById('txCategory').value = tx.category || 'Food';
+      document.getElementById('txType').value = tx.type || 'expense';
+      document.getElementById('txPaymentMethod').value = tx.paymentMethod || 'UPI';
+      document.getElementById('txDate').value = tx.date || new Date().toISOString().split('T')[0];
+      document.getElementById('txNotes').value = tx.notes || '';
+
+      const modalTitle = document.querySelector('#txModal .modal-header h3');
+      if (modalTitle) modalTitle.textContent = '✏️ Edit Daily Hisab Entry';
+
+      const modal = document.getElementById('txModal');
+      if (modal) modal.classList.add('active');
+    });
+  });
+
+  // Delete Listener
   tbody.querySelectorAll('.delete-tx-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');

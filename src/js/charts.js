@@ -16,16 +16,6 @@ export function renderExpenseCategoryChart(canvasId, categoryData) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
-  // Destroy any existing Chart.js instance attached to this canvas
-  const existingChart = Chart.getChart(canvas);
-  if (existingChart) {
-    existingChart.destroy();
-  }
-  if (expenseChartInstance) {
-    try { expenseChartInstance.destroy(); } catch (e) {}
-    expenseChartInstance = null;
-  }
-
   const { textColor, borderColor } = getThemeColors();
   const labels = Object.keys(categoryData);
   const values = Object.values(categoryData);
@@ -40,6 +30,22 @@ export function renderExpenseCategoryChart(canvasId, categoryData) {
     '#06b6d4', '#8b5cf6', '#ec4899', '#64748b'
   ];
 
+  const existingChart = Chart.getChart(canvas) || expenseChartInstance;
+  if (existingChart && existingChart.ctx && existingChart.canvas === canvas) {
+    existingChart.data.labels = labels;
+    existingChart.data.datasets[0].data = values;
+    existingChart.data.datasets[0].backgroundColor = colors.slice(0, labels.length);
+    existingChart.data.datasets[0].borderColor = borderColor;
+    existingChart.options.plugins.legend.labels.color = textColor;
+    existingChart.update('none');
+    expenseChartInstance = existingChart;
+    return;
+  }
+
+  if (existingChart) {
+    try { existingChart.destroy(); } catch (e) {}
+  }
+
   expenseChartInstance = new Chart(canvas, {
     type: 'doughnut',
     data: {
@@ -52,7 +58,7 @@ export function renderExpenseCategoryChart(canvasId, categoryData) {
       }]
     },
     options: {
-      animation: { duration: 250 },
+      animation: false,
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
@@ -84,17 +90,27 @@ export function renderCashFlowBarChart(canvasId, metrics) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
-  // Destroy any existing Chart.js instance attached to this canvas
-  const existingChart = Chart.getChart(canvas);
-  if (existingChart) {
-    existingChart.destroy();
-  }
-  if (cashFlowChartInstance) {
-    try { cashFlowChartInstance.destroy(); } catch (e) {}
-    cashFlowChartInstance = null;
+  const { textColor, gridColor } = getThemeColors();
+  const newData = [
+    metrics.totalIncome || 0,
+    metrics.totalExpenses || 0,
+    metrics.totalInvestments || 0,
+    metrics.totalEmisPaid || 0
+  ];
+
+  const existingChart = Chart.getChart(canvas) || cashFlowChartInstance;
+  if (existingChart && existingChart.ctx && existingChart.canvas === canvas) {
+    existingChart.data.datasets[0].data = newData;
+    if (existingChart.options.scales.x) existingChart.options.scales.x.ticks.color = textColor;
+    if (existingChart.options.scales.y) existingChart.options.scales.y.ticks.color = textColor;
+    existingChart.update('none');
+    cashFlowChartInstance = existingChart;
+    return;
   }
 
-  const { textColor, gridColor } = getThemeColors();
+  if (existingChart) {
+    try { existingChart.destroy(); } catch (e) {}
+  }
 
   cashFlowChartInstance = new Chart(canvas, {
     type: 'bar',
@@ -102,12 +118,7 @@ export function renderCashFlowBarChart(canvasId, metrics) {
       labels: ['Income', 'Daily Expenses', 'Investments', 'EMIs Paid'],
       datasets: [{
         label: 'Amount (₹)',
-        data: [
-          metrics.totalIncome,
-          metrics.totalExpenses,
-          metrics.totalInvestments,
-          metrics.totalEmisPaid
-        ],
+        data: newData,
         backgroundColor: [
           '#10b981',
           '#ef4444',
@@ -118,7 +129,7 @@ export function renderCashFlowBarChart(canvasId, metrics) {
       }]
     },
     options: {
-      animation: { duration: 250 },
+      animation: false,
       responsive: true,
       maintainAspectRatio: false,
       plugins: {

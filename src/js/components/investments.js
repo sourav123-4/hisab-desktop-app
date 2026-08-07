@@ -96,7 +96,10 @@ export function renderInvestmentsView(container, currentMonthYear) {
           <h3 class="card-title">Investment Portfolio & SIP Holdings</h3>
           <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Track Mutual Funds, Stocks, FDs, SGBs, and SIP outflows.</p>
         </div>
-        <button class="btn btn-primary" id="addInvestmentBtn">+ Add Investment / SIP</button>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn btn-purple" id="addFnoBtn">+ Add Stock / F&O Capital</button>
+          <button class="btn btn-primary" id="addInvestmentBtn">+ Add Investment / SIP</button>
+        </div>
       </div>
 
       <div class="table-responsive">
@@ -135,13 +138,16 @@ export function renderInvestmentsView(container, currentMonthYear) {
                   <td style="font-weight: 700; color: ${positive ? 'var(--accent-success)' : 'var(--accent-danger)'};">
                     ${positive ? '+' : ''}${currency}${gain.toLocaleString('en-IN')} (${roi}%)
                   </td>
-                  <td style="text-align: right; min-width: 220px; white-space: nowrap;">
-                    <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: nowrap;">
+                  <td style="text-align: right; min-width: 260px; white-space: nowrap;">
+                    <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: nowrap;">
                       ${inv.monthlySip > 0 ? `
                         <button class="btn btn-success btn-sm pay-sip-btn" data-id="${inv.id}">
                           Log SIP (${currency}${inv.monthlySip.toLocaleString('en-IN')})
                         </button>
                       ` : ''}
+                      <button class="btn btn-secondary btn-sm edit-inv-btn" data-id="${inv.id}">
+                        ✏️ Edit
+                      </button>
                       <button class="btn btn-secondary btn-sm delete-inv-btn" data-id="${inv.id}" style="color: var(--accent-danger);">
                         Delete
                       </button>
@@ -157,6 +163,50 @@ export function renderInvestmentsView(container, currentMonthYear) {
   `;
 
   // Attach Event Handlers
+  container.querySelector('#addFnoBtn')?.addEventListener('click', () => {
+    const form = document.getElementById('invForm');
+    if (form) {
+      form.reset();
+      delete form.dataset.editingId;
+      if (document.getElementById('invEditId')) document.getElementById('invEditId').value = '';
+      document.getElementById('invName').value = 'Zerodha F&O Capital';
+      document.getElementById('invCategory').value = 'F&O Trading';
+      document.getElementById('invType').value = 'F&O Capital';
+      document.getElementById('invPlatform').value = 'Zerodha';
+    }
+    const modalTitle = document.getElementById('invModalTitle');
+    if (modalTitle) modalTitle.textContent = '📈 Add Stock / F&O Trading Capital';
+    const modal = document.getElementById('invModal');
+    if (modal) modal.classList.add('active');
+  });
+
+  container.querySelectorAll('.edit-inv-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const invId = btn.getAttribute('data-id');
+      const inv = investments.find(i => i.id === invId);
+      if (!inv) return;
+
+      const form = document.getElementById('invForm');
+      if (!form) return;
+
+      form.dataset.editingId = inv.id;
+      if (document.getElementById('invEditId')) document.getElementById('invEditId').value = inv.id;
+      document.getElementById('invName').value = inv.name || '';
+      document.getElementById('invCategory').value = inv.category || 'Mutual Funds';
+      document.getElementById('invType').value = inv.type || 'SIP';
+      document.getElementById('invMonthlySip').value = inv.monthlySip || 0;
+      document.getElementById('invPlatform').value = inv.platform || '';
+      document.getElementById('invTotalInvested').value = inv.totalInvested || 0;
+      document.getElementById('invCurrentValue').value = inv.currentValue || 0;
+
+      const modalTitle = document.getElementById('invModalTitle');
+      if (modalTitle) modalTitle.textContent = '✏️ Edit Investment / F&O Holding';
+
+      const modal = document.getElementById('invModal');
+      if (modal) modal.classList.add('active');
+    });
+  });
+
   container.querySelectorAll('.pay-sip-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const invId = btn.getAttribute('data-id');

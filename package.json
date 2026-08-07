@@ -23,6 +23,7 @@
     "files": [
       "dist/**/*",
       "main.js",
+      "google-auth.html",
       "preload.js",
       "preload.cjs",
       ".env",

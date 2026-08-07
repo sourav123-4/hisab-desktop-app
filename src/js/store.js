@@ -399,6 +399,26 @@ class Store {
     this.data.transactions = this.data.transactions.filter(tx => tx.id !== id);
     deleteFromCloud('transactions', id);
     this.save();
+    if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
+  }
+
+  editTransaction(id, updatedTx) {
+    const index = this.data.transactions.findIndex(t => t.id === id);
+    if (index === -1) return null;
+
+    const tx = this.data.transactions[index];
+    tx.title = updatedTx.title !== undefined ? updatedTx.title : tx.title;
+    tx.amount = updatedTx.amount !== undefined ? (parseFloat(updatedTx.amount) || 0) : tx.amount;
+    tx.category = updatedTx.category !== undefined ? updatedTx.category : tx.category;
+    tx.type = updatedTx.type !== undefined ? updatedTx.type : tx.type;
+    tx.paymentMethod = updatedTx.paymentMethod !== undefined ? updatedTx.paymentMethod : tx.paymentMethod;
+    tx.date = updatedTx.date !== undefined ? updatedTx.date : tx.date;
+    tx.notes = updatedTx.notes !== undefined ? updatedTx.notes : tx.notes;
+
+    saveToCloud('transactions', tx.id, tx);
+    this.save();
+    if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
+    return tx;
   }
 
   // Loans & EMIs
@@ -439,7 +459,8 @@ class Store {
     saveToCloud('loans', loan.id, loan);
 
     const today = new Date();
-    const dateStr = monthYear ? `${monthYear}-05` : today.toISOString().split('T')[0];
+    const emiDay = String(Math.min(31, Math.max(1, parseInt(loan.emiDay) || 5))).padStart(2, '0');
+    const dateStr = monthYear ? `${monthYear}-${emiDay}` : today.toISOString().split('T')[0];
 
     this.addTransaction({
       date: dateStr,
@@ -473,13 +494,33 @@ class Store {
     this.data.investments.push(newInv);
     saveToCloud('investments', newInv.id, newInv);
     this.save();
+    if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
     return newInv;
+  }
+
+  editInvestment(id, updatedInv) {
+    const inv = this.data.investments.find(i => i.id === id);
+    if (!inv) return null;
+
+    inv.name = updatedInv.name !== undefined ? updatedInv.name : inv.name;
+    inv.category = updatedInv.category !== undefined ? updatedInv.category : inv.category;
+    inv.type = updatedInv.type !== undefined ? updatedInv.type : inv.type;
+    inv.monthlySip = updatedInv.monthlySip !== undefined ? (parseFloat(updatedInv.monthlySip) || 0) : inv.monthlySip;
+    inv.totalInvested = updatedInv.totalInvested !== undefined ? (parseFloat(updatedInv.totalInvested) || 0) : inv.totalInvested;
+    inv.currentValue = updatedInv.currentValue !== undefined ? (parseFloat(updatedInv.currentValue) || 0) : inv.currentValue;
+    inv.platform = updatedInv.platform !== undefined ? updatedInv.platform : inv.platform;
+
+    saveToCloud('investments', inv.id, inv);
+    this.save();
+    if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
+    return inv;
   }
 
   deleteInvestment(id) {
     this.data.investments = this.data.investments.filter(i => i.id !== id);
     deleteFromCloud('investments', id);
     this.save();
+    if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
   }
 
   paySipForInvestment(invId, monthYear) {
@@ -535,6 +576,14 @@ class Store {
     }
     saveToCloud('salary', salObj.id, salObj);
     this.save();
+    if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
+  }
+
+  deleteSalary(id) {
+    this.data.salary = this.data.salary.filter(s => s.id !== id && s.monthYear !== id);
+    deleteFromCloud('salary', id);
+    this.save();
+    if (typeof window.onHisabStoreUpdate === 'function') window.onHisabStoreUpdate();
   }
 
   // Budgets
@@ -549,35 +598,55 @@ class Store {
     this.save();
   }
 
-  // Analytics Helpers (Accurate Single-Source Calculation)
-  getMonthlyMetrics(monthYear) {
+  getKnownMonthYears() {
+    const months = new Set();
+
+    if (Array.isArray(this.data.transactions)) {
+      this.data.transactions.forEach(tx => {
+        if (tx.date && /^\d{4}-\d{2}/.test(tx.date)) {
+          months.add(tx.date.substring(0, 7));
+        }
+      });
+    }
+
+    if (Array.isArray(this.data.salary)) {
+      this.data.salary.forEach(sal => {
+        if (sal.monthYear && /^\d{4}-\d{2}$/.test(sal.monthYear)) {
+          months.add(sal.monthYear);
+        }
+      });
+    }
+
+    return Array.from(months).sort();
+  }
+
+  calculateMonthTotals(monthYear) {
     const txs = this.getTransactions(monthYear);
 
-    let totalIncome = 0;
+    let transactionIncome = 0;
     let totalExpenses = 0;
     let totalInvestments = 0;
     let totalEmisPaid = 0;
 
     txs.forEach(tx => {
+      const amount = parseFloat(tx.amount) || 0;
       if (tx.type === 'income' || tx.category === 'Income' || /salary/i.test(tx.title)) {
-        totalIncome += tx.amount;
+        transactionIncome += amount;
       } else if (tx.type === 'investment' || tx.category === 'Investment') {
-        totalInvestments += tx.amount;
+        totalInvestments += amount;
       } else if (tx.type === 'emi' || tx.category === 'EMI') {
-        totalEmisPaid += tx.amount;
+        totalEmisPaid += amount;
       } else {
-        totalExpenses += tx.amount;
+        totalExpenses += amount;
       }
     });
 
-    // Also include salary record if logged separately and higher than transaction sum
     const salaryRec = Array.isArray(this.data.salary) ? this.data.salary.find(s => s.monthYear === monthYear) : null;
-    if (salaryRec && salaryRec.netAmount > totalIncome) {
-      totalIncome = salaryRec.netAmount;
-    }
+    const salaryNetAmount = salaryRec ? (parseFloat(salaryRec.netAmount) || 0) : 0;
+    const totalIncome = Math.max(transactionIncome, salaryNetAmount);
 
     const netOutflow = totalExpenses + totalInvestments + totalEmisPaid;
-    const netSavings = totalIncome - netOutflow;
+    const monthlyRemainingBalance = totalIncome - netOutflow;
 
     return {
       totalIncome,
@@ -585,7 +654,27 @@ class Store {
       totalInvestments,
       totalEmisPaid,
       netOutflow,
-      netSavings
+      monthlyRemainingBalance
+    };
+  }
+
+  // Analytics Helpers (Accurate rolling cash balance without changing stored data)
+  getMonthlyMetrics(monthYear) {
+    const currentTotals = this.calculateMonthTotals(monthYear);
+    const openingBalance = this.getKnownMonthYears()
+      .filter(month => month < monthYear)
+      .reduce((sum, month) => sum + this.calculateMonthTotals(month).monthlyRemainingBalance, 0);
+
+    const availableBalance = openingBalance + currentTotals.totalIncome;
+    const remainingBalance = availableBalance - currentTotals.netOutflow;
+
+    return {
+      ...currentTotals,
+      openingBalance,         // Balance carried from previous cycles
+      availableBalance,       // Opening balance + current month income
+      monthlyRemainingBalance: currentTotals.monthlyRemainingBalance,
+      remainingBalance,       // Exact cash balance after current cycle deductions
+      netSavings: remainingBalance
     };
   }
 

@@ -422,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
         micStream = null;
       }
       if (voiceStatusText) {
-        voiceStatusText.textContent = '❌ Microphone denied — allow in System Settings.';
+        voiceStatusText.textContent = '❌ Microphone blocked by OS — Go to System Settings → Privacy & Security → Microphone to enable it.';
       }
     }
   };
@@ -627,7 +627,12 @@ function openModal(modalId) {
 
   // Set default dates if needed
   if (modalId === 'txModal') {
-    document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+    const form = document.getElementById('txForm');
+    if (form && !form.dataset.editingId) {
+      document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+      const modalTitle = document.querySelector('#txModal .modal-header h3');
+      if (modalTitle) modalTitle.textContent = 'Add Daily Hisab Entry';
+    }
   } else if (modalId === 'salaryModal') {
     document.getElementById('salDate').value = `${currentMonthYear}-01`;
   }
@@ -637,14 +642,26 @@ function openModal(modalId) {
 
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) modal.classList.remove('active');
+  if (modal) {
+    modal.classList.remove('active');
+    if (modalId === 'txModal') {
+      const form = document.getElementById('txForm');
+      if (form) {
+        delete form.dataset.editingId;
+        form.reset();
+      }
+    }
+  }
 }
 
 function setupForms() {
   // Transaction Form
-  document.getElementById('txForm').addEventListener('submit', (e) => {
+  document.getElementById('txForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    store.addTransaction({
+    const form = e.target;
+    const editingId = form.dataset.editingId || document.getElementById('txEditId')?.value;
+
+    const txData = {
       title: document.getElementById('txTitle').value,
       amount: document.getElementById('txAmount').value,
       category: document.getElementById('txCategory').value,
@@ -652,33 +669,60 @@ function setupForms() {
       paymentMethod: document.getElementById('txPaymentMethod').value,
       date: document.getElementById('txDate').value,
       notes: document.getElementById('txNotes').value
-    });
+    };
+
+    if (editingId) {
+      store.editTransaction(editingId, txData);
+      delete form.dataset.editingId;
+      if (document.getElementById('txEditId')) document.getElementById('txEditId').value = '';
+      showToast('✨ Hisab entry updated successfully!');
+    } else {
+      store.addTransaction(txData);
+      showToast('✨ Hisab entry added successfully!');
+    }
+
     closeModal('txModal');
-    e.target.reset();
+    form.reset();
     renderCurrentTab();
   });
 
   // Loan Form
-  document.getElementById('loanForm').addEventListener('submit', (e) => {
+  document.getElementById('loanForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    store.addLoan({
+    const form = e.target;
+    const editingId = form.dataset.editingId || document.getElementById('loanEditId')?.value;
+
+    const loanData = {
       name: document.getElementById('loanName').value,
       lender: document.getElementById('loanLender').value,
-      interestRate: document.getElementById('loanInterest').value,
-      totalPrincipal: document.getElementById('loanPrincipal').value,
-      remainingAmount: document.getElementById('loanRemaining').value || document.getElementById('loanPrincipal').value,
-      monthlyEmi: document.getElementById('loanEmi').value,
+      totalPrincipal: document.getElementById('loanTotalAmount')?.value || document.getElementById('loanPrincipal')?.value,
+      remainingAmount: document.getElementById('loanRemainingAmount')?.value || document.getElementById('loanRemaining')?.value,
+      monthlyEmi: document.getElementById('loanMonthlyEmi')?.value || document.getElementById('loanEmi')?.value,
       emiDay: document.getElementById('loanDueDay').value
-    });
+    };
+
+    if (editingId) {
+      store.editLoan(editingId, loanData);
+      delete form.dataset.editingId;
+      if (document.getElementById('loanEditId')) document.getElementById('loanEditId').value = '';
+      showToast('✨ Loan account updated successfully!');
+    } else {
+      store.addLoan(loanData);
+      showToast('✨ Loan account created successfully!');
+    }
+
     closeModal('loanModal');
-    e.target.reset();
+    form.reset();
     renderCurrentTab();
   });
 
   // Investment Form
-  document.getElementById('invForm').addEventListener('submit', (e) => {
+  document.getElementById('invForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    store.addInvestment({
+    const form = e.target;
+    const editingId = form.dataset.editingId || document.getElementById('invEditId')?.value;
+
+    const invData = {
       name: document.getElementById('invName').value,
       category: document.getElementById('invCategory').value,
       type: document.getElementById('invType').value,
@@ -686,9 +730,20 @@ function setupForms() {
       platform: document.getElementById('invPlatform').value,
       totalInvested: document.getElementById('invTotalInvested').value,
       currentValue: document.getElementById('invCurrentValue').value
-    });
+    };
+
+    if (editingId) {
+      store.editInvestment(editingId, invData);
+      delete form.dataset.editingId;
+      if (document.getElementById('invEditId')) document.getElementById('invEditId').value = '';
+      showToast('✨ Investment record updated successfully!');
+    } else {
+      store.addInvestment(invData);
+      showToast('✨ Investment record added successfully!');
+    }
+
     closeModal('invModal');
-    e.target.reset();
+    form.reset();
     renderCurrentTab();
   });
 
