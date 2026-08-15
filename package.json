@@ -1,6 +1,6 @@
 {
   "name": "daily-hisab",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Daily Hisab desktop app for expenses, investments, loans/EMIs, and salary tracking",
   "main": "main.js",
   "type": "module",
@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "electron .",
+    "test": "tsx src/js/store.test.ts",
     "dist": "npm run build && electron-builder",
     "pack:mac": "npm run build && electron-builder --mac",
     "pack:win": "npm run build && electron-builder --win",
@@ -40,11 +41,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ]
     },
@@ -53,7 +60,10 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64", "ia32"]
+          "arch": [
+            "x64",
+            "ia32"
+          ]
         }
       ]
     },
@@ -63,11 +73,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     }
@@ -88,8 +102,11 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "electron": "^31.0.0",
     "electron-builder": "^26.15.3",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
     "vite": "^5.3.0"
   },
   "dependencies": {

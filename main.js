@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeImage, session, systemPreferences, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, nativeImage, session, systemPreferences, ipcMain, shell, Notification, Tray, Menu } from 'electron';
 import { exec, execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -43,6 +43,23 @@ try {
 
 // Enable hardware audio & media access switches
 app.commandLine.appendSwitch('enable-speech-dispatcher');
+
+ipcMain.handle('prompt-touch-id', async () => {
+  if (process.platform !== 'darwin') {
+    return { success: false, reason: 'Touch ID is only supported on macOS' };
+  }
+  try {
+    if (systemPreferences.canPromptTouchID && systemPreferences.canPromptTouchID()) {
+      await systemPreferences.promptTouchID('Unlock Daily Hisab App');
+      return { success: true };
+    } else {
+      return { success: false, reason: 'Touch ID is not configured or available on this Mac' };
+    }
+  } catch (err) {
+    console.warn('[Touch ID Prompt Error]', err);
+    return { success: false, reason: err.message || 'Touch ID verification failed' };
+  }
+});
 
 ipcMain.handle('trigger-dictation', async () => {
   return new Promise((resolve) => {
@@ -139,6 +156,7 @@ ipcMain.handle('transcribe-audio', async (event, arrayBuffer, mimeType) => {
 
 let localServerUrl = null;
 let mainWindow = null;
+let appTray = null;
 let pendingGoogleOAuth = null;
 
 function base64Url(buffer) {
@@ -439,7 +457,8 @@ function startLocalServer() {
       resolve(localServerUrl);
     }).on('error', () => {
       server.listen(0, '127.0.0.1', () => {
-        const port = server.address().port;
+        const addr = server.address();
+        const port = addr && typeof addr === 'object' ? addr.port : 0;
         localServerUrl = `http://localhost:${port}`;
         console.log(`[Local Server] Serving Daily Hisab on ${localServerUrl}`);
         resolve(localServerUrl);
@@ -509,6 +528,57 @@ function createWindow() {
     });
   }
 }
+  function createTray() {
+    if (appTray) return;
+    try {
+      const iconPath = path.join(__dirname, 'assets/icon.png');
+      const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
+      appTray = new Tray(trayIcon);
+      appTray.setToolTip('Daily Hisab Personal Finance');
+
+      const contextMenu = Menu.buildFromTemplate([
+        { label: '💰 Open Daily Hisab', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+        { label: '⚡ Quick Add Entry', click: () => {
+            if (mainWindow) {
+              mainWindow.show();
+              mainWindow.focus();
+              mainWindow.webContents.send('open-quick-add');
+            }
+          }
+        },
+        { type: 'separator' },
+        { label: 'Quit', click: () => app.quit() }
+      ]);
+
+      appTray.setContextMenu(contextMenu);
+      appTray.on('click', () => {
+        if (mainWindow) {
+          if (mainWindow.isVisible()) mainWindow.hide();
+          else { mainWindow.show(); mainWindow.focus(); }
+        }
+      });
+    } catch (e) {
+      console.warn('Could not initialize system tray:', e.message);
+    }
+  }
+
+ipcMain.handle('send-desktop-notification', async (event, { title, body }) => {
+  try {
+    if (Notification.isSupported()) {
+      const iconPath = path.join(__dirname, 'assets/icon.png');
+      const notif = new Notification({
+        title: title || 'Daily Hisab Alert',
+        body: body || '',
+        icon: nativeImage.createFromPath(iconPath)
+      });
+      notif.show();
+      return true;
+    }
+  } catch (e) {
+    console.warn('Desktop notification error:', e);
+  }
+  return false;
+});
 
 app.whenReady().then(async () => {
   if (process.platform === 'darwin') {
@@ -527,6 +597,7 @@ app.whenReady().then(async () => {
 
   await startLocalServer();
   createWindow();
+  createTray();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

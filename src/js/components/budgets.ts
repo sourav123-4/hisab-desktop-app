@@ -1,20 +1,19 @@
 import { store } from '../store.js';
+import type { Transaction } from '../../types/index.js';
 
-export function renderBudgetsView(container, currentMonthYear) {
+export function renderBudgetsView(container: HTMLElement, currentMonthYear: string): void {
   const budgets = store.getBudgets();
   const txs = store.getTransactions(currentMonthYear);
   const currency = store.data.currency || '₹';
 
-  // Calculate spent per category
-  const categorySpent = {};
-  txs.filter(t => t.type === 'expense').forEach(t => {
+  const categorySpent: Record<string, number> = {};
+  txs.filter(t => t.type === 'expense').forEach((t: Transaction) => {
     categorySpent[t.category] = (categorySpent[t.category] || 0) + t.amount;
   });
 
   const categories = ['Food', 'Bills', 'Transport', 'Shopping', 'Entertainment', 'Health', 'Others'];
 
   container.innerHTML = `
-    <!-- Category Budgets Section -->
     <div class="card">
       <div class="card-header">
         <div>
@@ -25,13 +24,13 @@ export function renderBudgetsView(container, currentMonthYear) {
 
       <div class="metrics-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; padding-bottom: 8px;">
         ${categories.map(cat => {
-    const limit = budgets[cat] || 0;
-    const spent = categorySpent[cat] || 0;
-    const percent = limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
-    const isOver = limit > 0 && spent > limit;
-    const isNear = limit > 0 && percent >= 80 && !isOver;
+          const limit = budgets[cat] || 0;
+          const spent = categorySpent[cat] || 0;
+          const percent = limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
+          const isOver = limit > 0 && spent > limit;
+          const isNear = limit > 0 && percent >= 80 && !isOver;
 
-    return `
+          return `
             <div class="metric-card" style="padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
               <div>
                 <div class="metric-header" style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
@@ -57,11 +56,10 @@ export function renderBudgetsView(container, currentMonthYear) {
               </div>
             </div>
           `;
-  }).join('')}
+        }).join('')}
       </div>
     </div>
 
-    <!-- Cloud Sync & Diagnostic Controls -->
     <div class="card">
       <div class="card-header">
         <div>
@@ -73,18 +71,9 @@ export function renderBudgetsView(container, currentMonthYear) {
         <button class="btn btn-secondary" id="manualCloudSyncBtn">
           ⚡ Force Real-Time Cloud Sync
         </button>
-        <!-- FCM / Cloud Test Diagnostic Box Commented Out
-        <button class="btn btn-secondary" id="testFirestoreBtn">
-          🔍 Test Cloud Firestore Connection
-        </button>
-        -->
       </div>
-      <!--
-      <div id="firestoreTestOutput" style="display: none; margin-top: 14px; padding: 12px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; font-size: 12px; border: 1px solid rgba(255,255,255,0.1);"></div>
-      -->
     </div>
 
-    <!-- Data Backup & Reset Settings Section -->
     <div class="card">
       <div class="card-header">
         <h3 class="card-title">Data Backup, Restore & App Controls</h3>
@@ -107,9 +96,8 @@ export function renderBudgetsView(container, currentMonthYear) {
     </div>
   `;
 
-  // Attach Firebase Manual Cloud Sync Listener
   container.querySelector('#manualCloudSyncBtn')?.addEventListener('click', async () => {
-    const btn = container.querySelector('#manualCloudSyncBtn');
+    const btn = container.querySelector('#manualCloudSyncBtn') as HTMLElement;
     btn.textContent = '⏳ Syncing to Cloud...';
     const { fullSyncToCloud } = await import('../firebaseSync.js');
     const ok = await fullSyncToCloud(store.data);
@@ -122,65 +110,27 @@ export function renderBudgetsView(container, currentMonthYear) {
     }
   });
 
-  /*
-  // Attach Test Firestore Listener (Commented Out)
-  container.querySelector('#testFirestoreBtn')?.addEventListener('click', async () => {
-    const outBox = container.querySelector('#firestoreTestOutput');
-    outBox.style.display = 'block';
-    outBox.style.color = '#38bdf8';
-    outBox.innerHTML = '⏳ Connecting to Firebase Cloud Firestore (project: taskmanager-bbf73)...';
-
-    try {
-      const { saveToCloud, subscribeToCloudCollection } = await import('../firebaseSync.js');
-      const testId = 'test-' + Date.now();
-      const testData = {
-        id: testId,
-        title: 'Diagnostic Test Transaction',
-        amount: 100,
-        category: 'Test',
-        timestamp: new Date().toISOString()
-      };
-
-      outBox.innerHTML += `<br>📤 Sending test document ID: <code>${testId}</code>...`;
-      const res = await saveToCloud('test_connection', testId, testData);
-
-      if (res && res.success) {
-        outBox.style.color = 'var(--accent-success)';
-        outBox.innerHTML = `✅ <strong>SUCCESS!</strong> Test document successfully written to Cloud Firestore collection <code>test_connection/${testId}</code>!<br><span style="color: var(--text-muted);">Check your Firebase Console under project <strong>taskmanager-bbf73</strong> → Firestore Database → <strong>test_connection</strong> collection.</span>`;
-      } else {
-        const errObj = (res && res.error) ? res.error : {};
-        outBox.style.color = 'var(--accent-danger)';
-        outBox.innerHTML = `❌ <strong>FIRESTORE ERROR:</strong> ${errObj.code || 'unknown_code'}<br><code>${errObj.message || 'Write failed'}</code><br><br><span style="color: var(--text-secondary);">If the code is <strong>permission-denied</strong>, enable <code>allow read, write: if request.auth != null;</code> in Firebase Console → Firestore Database → Rules. If <strong>auth/operation-not-allowed</strong>, enable Anonymous Auth in Firebase Console → Authentication → Sign-in method.</span>`;
-      }
-    } catch (err) {
-      outBox.style.color = 'var(--accent-danger)';
-      outBox.innerHTML = `❌ <strong>Exception:</strong> ${err.message}`;
-    }
-  });
-  */
-
-  // Attach Save Budget Listeners
   container.querySelectorAll('.save-budget-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const cat = btn.getAttribute('data-cat');
-      const input = container.querySelector(`.budget-input[data-cat="${cat}"]`);
-      const val = input.value;
+      if (!cat) return;
+      const input = container.querySelector(`.budget-input[data-cat="${cat}"]`) as HTMLInputElement;
+      const val = input ? input.value : '0';
       store.setBudget(cat, val);
-      alert(`Budget for ${cat} set to ${currency}${parseFloat(val || 0).toLocaleString('en-IN')}`);
+      alert(`Budget for ${cat} set to ${currency}${parseFloat(val || '0').toLocaleString('en-IN')}`);
       renderBudgetsView(container, currentMonthYear);
     });
   });
 
-  // Export / Import / Reset handlers
   container.querySelector('#exportBackupBtn')?.addEventListener('click', () => {
     store.exportJSON();
   });
 
-  container.querySelector('#importBackupInput')?.addEventListener('change', (e) => {
+  container.querySelector('#importBackupInput')?.addEventListener('change', (e: any) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = (event: any) => {
         if (store.importJSON(event.target.result)) {
           alert('Backup restored successfully!');
         }
@@ -190,7 +140,7 @@ export function renderBudgetsView(container, currentMonthYear) {
   });
 
   container.querySelector('#resetSampleDataBtn')?.addEventListener('click', async () => {
-    const btn = container.querySelector('#resetSampleDataBtn');
+    const btn = container.querySelector('#resetSampleDataBtn') as HTMLElement;
     if (confirm('Reset all transactions, loans, and investment data to default sample dataset?')) {
       if (btn) btn.textContent = '⏳ Resetting data...';
       await store.resetToSampleData();

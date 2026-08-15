@@ -10,5 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
   getAuthCallbackUrl: () => ipcRenderer.invoke('get-auth-callback-url'),
   startGoogleOAuth: (options) => ipcRenderer.invoke('start-google-oauth', options),
-  onGoogleAuthSuccess: (callback) => ipcRenderer.on('google-auth-callback', (event, data) => callback(data))
+  onGoogleAuthSuccess: (callback) => ipcRenderer.on('google-auth-callback', (event, data) => callback(data)),
+  sendDesktopNotification: (payload) => ipcRenderer.invoke('send-desktop-notification', payload),
+  promptTouchID: () => ipcRenderer.invoke('prompt-touch-id'),
+  onOpenQuickAdd: (callback) => ipcRenderer.on('open-quick-add', () => callback())
 });

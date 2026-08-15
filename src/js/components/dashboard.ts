@@ -1,17 +1,19 @@
 import { store } from '../store.js';
-import { renderExpenseCategoryChart, renderCashFlowBarChart } from '../charts.js';
+import { renderExpenseCategoryChart, renderCashFlowBarChart, renderMomTrendChart } from '../charts.js';
+import { exportTransactionsCSV, printFinancialStatementPDF } from '../statementExporter.js';
+import { renderCsvImporterModal } from './csvImporter.js';
+import { parseMultipleHisabs } from '../aiParser.js';
+import type { Transaction } from '../../types/index.js';
 
-export function renderDashboardView(container, currentMonthYear) {
+export function renderDashboardView(container: HTMLElement, currentMonthYear: string): void {
   const metrics = store.getMonthlyMetrics(currentMonthYear);
   const txs = store.getTransactions(currentMonthYear);
   const loans = store.getLoans();
   const investments = store.getInvestments();
 
-  // Calculate total investment value
   const totalPortfolioValue = investments.reduce((acc, i) => acc + (i.currentValue || 0), 0);
 
-  // Category expense breakdown
-  const categoryData = {};
+  const categoryData: Record<string, number> = {};
   txs.filter(t => t.type === 'expense').forEach(t => {
     categoryData[t.category] = (categoryData[t.category] || 0) + t.amount;
   });
@@ -20,12 +22,22 @@ export function renderDashboardView(container, currentMonthYear) {
   const totalExpensesAndEmis = metrics.totalExpenses + metrics.totalEmisPaid;
   const exactCashBalance = metrics.remainingBalance;
 
-  // Check if Dashboard HTML structure is already present in container
   const isAlreadyInDom = container.querySelector('#cashFlowCanvas') !== null;
 
   if (!isAlreadyInDom) {
     container.innerHTML = `
-      <!-- AI Smart Quick Entry Banner -->
+      <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; justify-content: flex-end;">
+        <button class="btn btn-secondary btn-sm" id="dashExportPdfBtn">
+          📄 Print / PDF Statement
+        </button>
+        <button class="btn btn-secondary btn-sm" id="dashExportCsvBtn">
+          📊 Export CSV Statement
+        </button>
+        <button class="btn btn-primary btn-sm" id="dashImportBankCsvBtn">
+          📑 Import Bank CSV
+        </button>
+      </div>
+
       <div class="card" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%); border-color: rgba(99, 102, 241, 0.3); padding: 14px 18px; margin-bottom: 20px;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
           <span style="font-weight: 700; font-size: 13.5px; color: var(--accent-primary); display: flex; align-items: center; gap: 6px;">
@@ -39,9 +51,7 @@ export function renderDashboardView(container, currentMonthYear) {
         </div>
       </div>
 
-      <!-- Top Summary Cards Grid -->
       <div class="metrics-grid">
-        <!-- Income / Salary Card -->
         <div class="metric-card">
           <div class="metric-header">
             <span class="metric-title">Money Available This Cycle</span>
@@ -53,7 +63,6 @@ export function renderDashboardView(container, currentMonthYear) {
           <div class="metric-sub" id="dashSubAvailable"></div>
         </div>
 
-        <!-- Daily Expenses Card -->
         <div class="metric-card">
           <div class="metric-header">
             <span class="metric-title">Total Expenses (Hisab + EMI)</span>
@@ -65,7 +74,6 @@ export function renderDashboardView(container, currentMonthYear) {
           <div class="metric-sub" id="dashSubExpenses"></div>
         </div>
 
-        <!-- Total Investments Card -->
         <div class="metric-card">
           <div class="metric-header">
             <span class="metric-title">Total Invested Amount</span>
@@ -77,7 +85,6 @@ export function renderDashboardView(container, currentMonthYear) {
           <div class="metric-sub" id="dashSubPortfolio"></div>
         </div>
 
-        <!-- Remaining Balance Card -->
         <div class="metric-card">
           <div class="metric-header">
             <span class="metric-title">Exact Current Balance</span>
@@ -90,7 +97,6 @@ export function renderDashboardView(container, currentMonthYear) {
         </div>
       </div>
 
-      <!-- Charts Section -->
       <div class="charts-grid">
         <div class="card">
           <div class="card-header">
@@ -111,7 +117,15 @@ export function renderDashboardView(container, currentMonthYear) {
         </div>
       </div>
 
-      <!-- Recent Transactions Table Card -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-header">
+          <span class="card-title">📈 Month-over-Month (MoM) Cash Flow Trend</span>
+        </div>
+        <div class="chart-container" style="height: 220px;">
+          <canvas id="momTrendCanvas"></canvas>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <span class="card-title">Recent Transactions & Hisab Ledger</span>
@@ -137,9 +151,17 @@ export function renderDashboardView(container, currentMonthYear) {
       </div>
     `;
 
-    // Connect Quick Entry AI Button
+    const exportPdfBtn = container.querySelector('#dashExportPdfBtn') as HTMLElement | null;
+    if (exportPdfBtn) exportPdfBtn.onclick = () => printFinancialStatementPDF(currentMonthYear);
+
+    const exportCsvBtn = container.querySelector('#dashExportCsvBtn') as HTMLElement | null;
+    if (exportCsvBtn) exportCsvBtn.onclick = () => exportTransactionsCSV(currentMonthYear);
+
+    const importBankBtn = container.querySelector('#dashImportBankCsvBtn') as HTMLElement | null;
+    if (importBankBtn) importBankBtn.onclick = () => renderCsvImporterModal();
+
     const aiSaveBtn = container.querySelector('#dashboardAiSaveBtn');
-    const aiInput = container.querySelector('#dashboardAiInput');
+    const aiInput = container.querySelector('#dashboardAiInput') as HTMLInputElement | null;
     if (aiSaveBtn && aiInput) {
       const runAiSave = () => {
         const text = aiInput.value.trim();
@@ -151,7 +173,7 @@ export function renderDashboardView(container, currentMonthYear) {
         }
       };
       aiSaveBtn.addEventListener('click', runAiSave);
-      aiInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runAiSave(); });
+      aiInput.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') runAiSave(); });
     }
 
     const addTxBtn = container.querySelector('#dashboardAddTxBtn');
@@ -163,7 +185,6 @@ export function renderDashboardView(container, currentMonthYear) {
     }
   }
 
-  // Update card values in-place (keeps canvas DOM elements completely stable)
   const dashValAvailable = container.querySelector('#dashValAvailable');
   if (dashValAvailable) {
     dashValAvailable.textContent = `${metrics.availableBalance < 0 ? '-' : ''}${currency}${Math.abs(metrics.availableBalance).toLocaleString('en-IN')}`;
@@ -191,25 +212,24 @@ export function renderDashboardView(container, currentMonthYear) {
     dashSubPortfolio.textContent = `${currency}${metrics.totalInvestments.toLocaleString('en-IN')} invested in ${currentMonthYear}`;
   }
 
-  const dashValBalance = container.querySelector('#dashValBalance');
+  const dashValBalance = container.querySelector('#dashValBalance') as HTMLElement | null;
   if (dashValBalance) {
     dashValBalance.style.color = exactCashBalance >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)';
     dashValBalance.textContent = `${exactCashBalance < 0 ? '-' : ''}${currency}${Math.abs(exactCashBalance).toLocaleString('en-IN')}`;
   }
-  const dashBoxBalance = container.querySelector('#dashBoxBalance');
+  const dashBoxBalance = container.querySelector('#dashBoxBalance') as HTMLElement | null;
   if (dashBoxBalance) {
     dashBoxBalance.style.background = exactCashBalance >= 0 ? 'var(--accent-success-light)' : 'var(--accent-danger-light)';
     dashBoxBalance.style.color = exactCashBalance >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)';
   }
 
-  // Update Recent Transactions Tbody in-place
   const recentTbody = container.querySelector('#dashboardRecentTbody');
   if (recentTbody) {
     const recentList = store.getRecentTransactions(7);
     if (recentList.length === 0) {
       recentTbody.innerHTML = `<tr><td colspan="7" class="empty-state">No transactions recorded yet. Use AI Voice or Quick Entry to add entries!</td></tr>`;
     } else {
-      recentTbody.innerHTML = recentList.map(tx => `
+      recentTbody.innerHTML = recentList.map((tx: Transaction) => `
         <tr>
           <td>${tx.date}</td>
           <td><strong>${escapeHTML(tx.title)}</strong> ${tx.notes ? `<div style="font-size: 11px; color: var(--text-muted);">${escapeHTML(tx.notes)}</div>` : ''}</td>
@@ -236,17 +256,18 @@ export function renderDashboardView(container, currentMonthYear) {
           const id = btn.getAttribute('data-id');
           const tx = txs.find(t => t.id === id) || store.data.transactions.find(t => t.id === id);
           if (!tx) return;
-          const form = document.getElementById('txForm');
+          const form = document.getElementById('txForm') as HTMLFormElement | null;
           if (!form) return;
           form.dataset.editingId = tx.id;
-          if (document.getElementById('txEditId')) document.getElementById('txEditId').value = tx.id;
-          document.getElementById('txTitle').value = tx.title || '';
-          document.getElementById('txAmount').value = tx.amount || '';
-          document.getElementById('txCategory').value = tx.category || 'Food';
-          document.getElementById('txType').value = tx.type || 'expense';
-          document.getElementById('txPaymentMethod').value = tx.paymentMethod || 'UPI';
-          document.getElementById('txDate').value = tx.date || new Date().toISOString().split('T')[0];
-          document.getElementById('txNotes').value = tx.notes || '';
+          const editIdInput = document.getElementById('txEditId') as HTMLInputElement | null;
+          if (editIdInput) editIdInput.value = tx.id;
+          (document.getElementById('txTitle') as HTMLInputElement).value = tx.title || '';
+          (document.getElementById('txAmount') as HTMLInputElement).value = String(tx.amount || '');
+          (document.getElementById('txCategory') as HTMLSelectElement).value = tx.category || 'Food';
+          (document.getElementById('txType') as HTMLSelectElement).value = tx.type || 'expense';
+          (document.getElementById('txPaymentMethod') as HTMLSelectElement).value = tx.paymentMethod || 'UPI';
+          (document.getElementById('txDate') as HTMLInputElement).value = tx.date || new Date().toISOString().split('T')[0];
+          (document.getElementById('txNotes') as HTMLInputElement).value = tx.notes || '';
           const modalTitle = document.querySelector('#txModal .modal-header h3');
           if (modalTitle) modalTitle.textContent = '✏️ Edit Daily Hisab Entry';
           const modal = document.getElementById('txModal');
@@ -257,7 +278,7 @@ export function renderDashboardView(container, currentMonthYear) {
       recentTbody.querySelectorAll('.dashboard-delete-tx-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const id = btn.getAttribute('data-id');
-          if (confirm('Are you sure you want to delete this hisab entry?')) {
+          if (id && confirm('Are you sure you want to delete this hisab entry?')) {
             store.deleteTransaction(id);
             renderDashboardView(container, currentMonthYear);
           }
@@ -266,12 +287,12 @@ export function renderDashboardView(container, currentMonthYear) {
     }
   }
 
-  // Update Charts on static canvas nodes directly!
   renderCashFlowBarChart('cashFlowCanvas', metrics);
   renderExpenseCategoryChart('categoryExpenseCanvas', categoryData);
+  renderMomTrendChart('momTrendCanvas', store);
 }
 
-function escapeHTML(str) {
+function escapeHTML(str: string): string {
   if (!str) return '';
   return String(str)
     .replace(/&/g, '&amp;')

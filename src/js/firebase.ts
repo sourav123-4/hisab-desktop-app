@@ -1,4 +1,4 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
   getAuth,
   signInAnonymously,
@@ -10,7 +10,9 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithCredential
+  signInWithCredential,
+  Auth,
+  User
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -21,13 +23,14 @@ import {
   deleteDoc,
   onSnapshot,
   query,
-  where
+  where,
+  Firestore
 } from 'firebase/firestore';
 
 const STORAGE_KEY_FIREBASE_CONFIG = 'daily_hisab_firebase_custom_config';
 
-export function getStoredFirebaseConfig() {
-  const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {};
+export function getStoredFirebaseConfig(): Record<string, string> {
+  const env: Record<string, string> = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {};
   try {
     const custom = localStorage.getItem(STORAGE_KEY_FIREBASE_CONFIG);
     if (custom) {
@@ -54,18 +57,18 @@ export function getStoredFirebaseConfig() {
   };
 }
 
-export function saveFirebaseConfig(config) {
+export function saveFirebaseConfig(config: Record<string, string>): void {
   try {
     localStorage.setItem(STORAGE_KEY_FIREBASE_CONFIG, JSON.stringify(config));
-    window.location.reload();
+    if (typeof window !== 'undefined') window.location.reload();
   } catch (e) {
     console.error('Failed to save custom Firebase config', e);
   }
 }
 
-let app;
-let db;
-let auth;
+let app: FirebaseApp | undefined;
+let db: Firestore | undefined;
+let auth: Auth | undefined;
 
 try {
   const config = getStoredFirebaseConfig();
@@ -76,12 +79,11 @@ try {
   }
   db = getFirestore(app);
   auth = getAuth(app);
-} catch (err) {
+} catch (err: any) {
   console.warn('[Firebase Init Warning]', err.message);
 }
 
-// Authentication Helpers
-export async function registerWithEmail(email, password, displayName = '') {
+export async function registerWithEmail(email: string, password: string, displayName: string = ''): Promise<User> {
   if (!auth) throw new Error('Firebase auth not initialized');
   const userCred = await createUserWithEmailAndPassword(auth, email, password);
   if (displayName && userCred.user) {
@@ -90,13 +92,13 @@ export async function registerWithEmail(email, password, displayName = '') {
   return userCred.user;
 }
 
-export async function loginWithEmail(email, password) {
+export async function loginWithEmail(email: string, password: string): Promise<User> {
   if (!auth) throw new Error('Firebase auth not initialized');
   const userCred = await signInWithEmailAndPassword(auth, email, password);
   return userCred.user;
 }
 
-export async function loginWithGoogle() {
+export async function loginWithGoogle(): Promise<User> {
   if (!auth) throw new Error('Firebase auth not initialized');
 
   if (typeof window !== 'undefined' && window.electronAPI?.openExternalUrl) {
@@ -108,7 +110,7 @@ export async function loginWithGoogle() {
         reject(new Error('Google Authentication timed out or window closed.'));
       }, 120000);
 
-      window.electronAPI.onGoogleAuthSuccess(async (payload) => {
+      window.electronAPI!.onGoogleAuthSuccess(async (payload: any) => {
         clearTimeout(timeout);
         try {
           if (payload?.error) {
@@ -130,24 +132,24 @@ export async function loginWithGoogle() {
               }
 
               if (credential) {
-                const userCred = await signInWithCredential(auth, credential);
+                const userCred = await signInWithCredential(auth!, credential);
                 resolve(userCred.user);
                 return;
               }
-            } catch (e1) {
+            } catch (e1: any) {
               console.warn('[Google OAuth Token Warning]:', e1.message);
               if (googleAccessToken) {
                 try {
                   const credential = GoogleAuthProvider.credential(null, googleAccessToken);
-                  const userCred = await signInWithCredential(auth, credential);
+                  const userCred = await signInWithCredential(auth!, credential);
                   resolve(userCred.user);
                   return;
                 } catch (e2) {}
               }
             }
 
-            if (auth.currentUser && !auth.currentUser.isAnonymous) {
-              resolve(auth.currentUser);
+            if (auth!.currentUser && !auth!.currentUser.isAnonymous) {
+              resolve(auth!.currentUser);
               return;
             }
           }
@@ -167,26 +169,25 @@ export async function loginWithGoogle() {
   return userCred.user;
 }
 
-export async function logoutUser() {
+export async function logoutUser(): Promise<void> {
   if (!auth) return;
   await signOut(auth);
 }
 
-export async function resetPassword(email) {
+export async function resetPassword(email: string): Promise<void> {
   if (!auth) throw new Error('Firebase auth not initialized');
   await sendPasswordResetEmail(auth, email);
 }
 
-export function getCurrentUser() {
+export function getCurrentUser(): User | null {
   return auth?.currentUser || null;
 }
 
-export function onAuthChange(callback) {
+export function onAuthChange(callback: (user: User | null) => void): (() => void) {
   if (!auth) return () => { };
   return onAuthStateChanged(auth, (user) => {
     if (!user) {
-      // Authenticate silently if anonymous fallback allowed
-      signInAnonymously(auth).catch(() => { });
+      signInAnonymously(auth!).catch(() => { });
     }
     callback(user);
   });

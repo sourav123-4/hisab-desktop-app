@@ -1,20 +1,19 @@
 import { store } from '../store.js';
+import type { SalaryRecord, Transaction } from '../../types/index.js';
 
-export function renderSalaryView(container, currentMonthYear) {
+export function renderSalaryView(container: HTMLElement, currentMonthYear: string): void {
   const salaryRecords = store.getSalaryRecords();
   const monthTxs = store.getTransactions(currentMonthYear);
   const incomeTxs = monthTxs.filter(t => t.type === 'income' || t.category === 'Income' || /salary/i.test(t.title));
   const currentSalary = salaryRecords.find(s => s.monthYear === currentMonthYear);
   const currency = store.data.currency || '₹';
 
-  // Calculate gross monthly income from salary records + individual income entries
   const totalMonthIncomeTxs = incomeTxs.reduce((sum, t) => sum + t.amount, 0);
   const grossSalary = currentSalary ? Math.max(currentSalary.grossAmount, totalMonthIncomeTxs) : totalMonthIncomeTxs;
   const netSalary = currentSalary ? Math.max(currentSalary.netAmount, totalMonthIncomeTxs) : totalMonthIncomeTxs;
   const deductions = currentSalary ? currentSalary.deductions : 0;
 
   container.innerHTML = `
-    <!-- Salary Summary Metrics Banner -->
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-header">
@@ -50,7 +49,6 @@ export function renderSalaryView(container, currentMonthYear) {
       </div>
     </div>
 
-    <!-- Salary Action Header & Log Card -->
     <div class="card">
       <div class="card-header">
         <div>
@@ -63,7 +61,6 @@ export function renderSalaryView(container, currentMonthYear) {
       </div>
     </div>
 
-    <!-- Logged Income Transactions in current month -->
     <div class="card">
       <div class="card-header">
         <h3 class="card-title">Income & Salary Credits (${currentMonthYear})</h3>
@@ -84,7 +81,7 @@ export function renderSalaryView(container, currentMonthYear) {
           <tbody>
             ${incomeTxs.length === 0 ? `
               <tr><td colspan="6" class="empty-state">No income entries logged for ${currentMonthYear}. Use AI Voice or Quick Entry to add income!</td></tr>
-            ` : incomeTxs.map(tx => `
+            ` : incomeTxs.map((tx: Transaction) => `
               <tr>
                 <td style="font-weight: 600;">${tx.date}</td>
                 <td><strong>${escapeHTML(tx.title)}</strong></td>
@@ -102,7 +99,6 @@ export function renderSalaryView(container, currentMonthYear) {
       </div>
     </div>
 
-    <!-- Historical Salary Log -->
     <div class="card">
       <div class="card-header">
         <h3 class="card-title">Monthly Pay Statements & Salary History</h3>
@@ -125,7 +121,7 @@ export function renderSalaryView(container, currentMonthYear) {
           <tbody>
             ${salaryRecords.length === 0 ? `
               <tr><td colspan="8" class="empty-state">No structured salary statements logged. Click "+ Log Salary" above.</td></tr>
-            ` : salaryRecords.map(sal => `
+            ` : salaryRecords.map((sal: SalaryRecord) => `
               <tr>
                 <td><strong style="font-size: 14px;">${sal.monthYear}</strong></td>
                 <td><strong>${escapeHTML(sal.company)}</strong></td>
@@ -150,28 +146,27 @@ export function renderSalaryView(container, currentMonthYear) {
     </div>
   `;
 
-  // Attach Log/Edit Salary Record Button
   container.querySelector('#editSalaryBtn')?.addEventListener('click', () => {
     openSalaryModal(currentSalary, currentMonthYear);
   });
 
-  // Attach Edit/Delete Listeners for Individual Income Entries
   container.querySelectorAll('.edit-income-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
       const tx = incomeTxs.find(t => t.id === id) || store.data.transactions.find(t => t.id === id);
       if (!tx) return;
-      const form = document.getElementById('txForm');
+      const form = document.getElementById('txForm') as HTMLFormElement | null;
       if (!form) return;
       form.dataset.editingId = tx.id;
-      if (document.getElementById('txEditId')) document.getElementById('txEditId').value = tx.id;
-      document.getElementById('txTitle').value = tx.title || '';
-      document.getElementById('txAmount').value = tx.amount || '';
-      document.getElementById('txCategory').value = tx.category || 'Income';
-      document.getElementById('txType').value = 'income';
-      document.getElementById('txPaymentMethod').value = tx.paymentMethod || 'UPI';
-      document.getElementById('txDate').value = tx.date || new Date().toISOString().split('T')[0];
-      document.getElementById('txNotes').value = tx.notes || '';
+      const editIdInput = document.getElementById('txEditId') as HTMLInputElement | null;
+      if (editIdInput) editIdInput.value = tx.id;
+      (document.getElementById('txTitle') as HTMLInputElement).value = tx.title || '';
+      (document.getElementById('txAmount') as HTMLInputElement).value = String(tx.amount || '');
+      (document.getElementById('txCategory') as HTMLSelectElement).value = tx.category || 'Income';
+      (document.getElementById('txType') as HTMLSelectElement).value = 'income';
+      (document.getElementById('txPaymentMethod') as HTMLSelectElement).value = tx.paymentMethod || 'UPI';
+      (document.getElementById('txDate') as HTMLInputElement).value = tx.date || new Date().toISOString().split('T')[0];
+      (document.getElementById('txNotes') as HTMLInputElement).value = tx.notes || '';
       const modalTitle = document.querySelector('#txModal .modal-header h3');
       if (modalTitle) modalTitle.textContent = '✏️ Edit Income Entry';
       const modal = document.getElementById('txModal');
@@ -182,14 +177,13 @@ export function renderSalaryView(container, currentMonthYear) {
   container.querySelectorAll('.delete-income-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
-      if (confirm('Are you sure you want to delete this income entry?')) {
+      if (id && confirm('Are you sure you want to delete this income entry?')) {
         store.deleteTransaction(id);
         renderSalaryView(container, currentMonthYear);
       }
     });
   });
 
-  // Attach Edit/Delete Listeners for Structured Salary History Statements
   container.querySelectorAll('.edit-statement-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
@@ -201,7 +195,7 @@ export function renderSalaryView(container, currentMonthYear) {
   container.querySelectorAll('.delete-statement-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
-      if (confirm('Are you sure you want to delete this salary statement?')) {
+      if (id && confirm('Are you sure you want to delete this salary statement?')) {
         store.deleteSalary(id);
         renderSalaryView(container, currentMonthYear);
       }
@@ -209,14 +203,14 @@ export function renderSalaryView(container, currentMonthYear) {
   });
 }
 
-function openSalaryModal(sal, monthYear) {
+function openSalaryModal(sal: SalaryRecord | undefined, monthYear: string): void {
   const form = document.getElementById('salaryForm');
   if (form) {
-    document.getElementById('salCompany').value = sal ? sal.company || '' : '';
-    document.getElementById('salGross').value = sal ? sal.grossAmount || '' : '';
-    document.getElementById('salDeductions').value = sal ? sal.deductions || 0 : 0;
-    document.getElementById('salNet').value = sal ? sal.netAmount || '' : '';
-    document.getElementById('salDate').value = sal ? sal.receivedDate || '' : new Date().toISOString().split('T')[0];
+    (document.getElementById('salCompany') as HTMLInputElement).value = sal ? sal.company || '' : '';
+    (document.getElementById('salGross') as HTMLInputElement).value = sal ? String(sal.grossAmount || '') : '';
+    (document.getElementById('salDeductions') as HTMLInputElement).value = sal ? String(sal.deductions || 0) : '0';
+    (document.getElementById('salNet') as HTMLInputElement).value = sal ? String(sal.netAmount || '') : '';
+    (document.getElementById('salDate') as HTMLInputElement).value = sal ? sal.receivedDate || '' : new Date().toISOString().split('T')[0];
   }
   const modalTitle = document.querySelector('#salaryModal .modal-header h3');
   if (modalTitle) modalTitle.textContent = sal ? `✏️ Edit Salary Record (${monthYear})` : `Log Salary Record (${monthYear})`;
@@ -224,7 +218,7 @@ function openSalaryModal(sal, monthYear) {
   if (modal) modal.classList.add('active');
 }
 
-function escapeHTML(str) {
+function escapeHTML(str: string): string {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

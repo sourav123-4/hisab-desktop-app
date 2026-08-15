@@ -1,6 +1,7 @@
 import { store } from '../store.js';
+import type { Loan, Transaction } from '../../types/index.js';
 
-export function renderLoansView(container, currentMonthYear) {
+export function renderLoansView(container: HTMLElement, currentMonthYear: string): void {
   const loans = store.getLoans();
   const monthTxs = store.getTransactions(currentMonthYear);
   const emiTxs = monthTxs.filter(t => t.type === 'emi' || t.category === 'EMI' || /loan|emi/i.test(t.title));
@@ -15,9 +16,7 @@ export function renderLoansView(container, currentMonthYear) {
   const monthEmiPending = Math.max(0, totalMonthlyEmiTarget - monthEmisPaid);
 
   container.innerHTML = `
-    <!-- Top Summary Metrics Grid -->
     <div class="metrics-grid">
-      <!-- Total Outstanding Debt -->
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-title">Total Debt Remaining</span>
@@ -29,7 +28,6 @@ export function renderLoansView(container, currentMonthYear) {
         <div class="metric-sub">${activeLoans.length} active loan account(s)</div>
       </div>
 
-      <!-- Current Month EMI Target & Paid -->
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-title">Monthly EMI Paid (${currentMonthYear})</span>
@@ -41,7 +39,6 @@ export function renderLoansView(container, currentMonthYear) {
         <div class="metric-sub">Target: ${currency}${totalMonthlyEmiTarget.toLocaleString('en-IN')} • Pending: ${currency}${monthEmiPending.toLocaleString('en-IN')}</div>
       </div>
 
-      <!-- Repayment Progress -->
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-title">Overall Debt Payoff Progress</span>
@@ -56,7 +53,6 @@ export function renderLoansView(container, currentMonthYear) {
       </div>
     </div>
 
-    <!-- Clean Single Loans & EMI Table Card -->
     <div class="card">
       <div class="card-header">
         <div>
@@ -81,7 +77,7 @@ export function renderLoansView(container, currentMonthYear) {
           <tbody>
             ${loans.length === 0 ? `
               <tr><td colspan="6" class="empty-state">No loan accounts recorded. Click "+ Add New Loan / EMI" to create an account.</td></tr>
-            ` : loans.map(loan => {
+            ` : loans.map((loan: Loan) => {
               const dueDayStr = String(loan.emiDay || 5).padStart(2, '0');
               const fullDueDateStr = `${currentMonthYear}-${dueDayStr}`;
               
@@ -151,13 +147,13 @@ export function renderLoansView(container, currentMonthYear) {
     </div>
   `;
 
-  // Attach Event Handlers
   container.querySelector('#addLoanBtn')?.addEventListener('click', () => {
-    const form = document.getElementById('loanForm');
+    const form = document.getElementById('loanForm') as HTMLFormElement | null;
     if (form) {
       form.reset();
       delete form.dataset.editingId;
-      if (document.getElementById('loanEditId')) document.getElementById('loanEditId').value = '';
+      const editId = document.getElementById('loanEditId') as HTMLInputElement | null;
+      if (editId) editId.value = '';
     }
     const modalTitle = document.getElementById('loanModalTitle');
     if (modalTitle) modalTitle.textContent = 'Add New Loan / EMI Account';
@@ -171,17 +167,21 @@ export function renderLoansView(container, currentMonthYear) {
       const loan = loans.find(l => l.id === loanId);
       if (!loan) return;
 
-      const form = document.getElementById('loanForm');
+      const form = document.getElementById('loanForm') as HTMLFormElement | null;
       if (!form) return;
 
       form.dataset.editingId = loan.id;
-      if (document.getElementById('loanEditId')) document.getElementById('loanEditId').value = loan.id;
-      document.getElementById('loanName').value = loan.name || '';
-      document.getElementById('loanLender').value = loan.lender || '';
-      if (document.getElementById('loanTotalAmount')) document.getElementById('loanTotalAmount').value = loan.totalPrincipal || 0;
-      if (document.getElementById('loanRemainingAmount')) document.getElementById('loanRemainingAmount').value = loan.remainingAmount || 0;
-      if (document.getElementById('loanMonthlyEmi')) document.getElementById('loanMonthlyEmi').value = loan.monthlyEmi || 0;
-      document.getElementById('loanDueDay').value = loan.emiDay || 5;
+      const editId = document.getElementById('loanEditId') as HTMLInputElement | null;
+      if (editId) editId.value = loan.id;
+      (document.getElementById('loanName') as HTMLInputElement).value = loan.name || '';
+      (document.getElementById('loanLender') as HTMLInputElement).value = loan.lender || '';
+      const totalAmountInput = document.getElementById('loanTotalAmount') as HTMLInputElement | null;
+      if (totalAmountInput) totalAmountInput.value = String(loan.totalPrincipal || 0);
+      const remainingInput = document.getElementById('loanRemainingAmount') as HTMLInputElement | null;
+      if (remainingInput) remainingInput.value = String(loan.remainingAmount || 0);
+      const monthlyEmiInput = document.getElementById('loanMonthlyEmi') as HTMLInputElement | null;
+      if (monthlyEmiInput) monthlyEmiInput.value = String(loan.monthlyEmi || 0);
+      (document.getElementById('loanDueDay') as HTMLInputElement).value = String(loan.emiDay || 5);
 
       const modalTitle = document.getElementById('loanModalTitle');
       if (modalTitle) modalTitle.textContent = '✏️ Edit Loan / EMI Account';
@@ -195,7 +195,7 @@ export function renderLoansView(container, currentMonthYear) {
     btn.addEventListener('click', () => {
       const loanId = btn.getAttribute('data-id');
       const loan = loans.find(l => l.id === loanId);
-      if (confirm(`Record EMI payment of ${currency}${loan.monthlyEmi.toLocaleString('en-IN')} for ${loan.name} into your ${currentMonthYear} Daily Hisab?`)) {
+      if (loanId && loan && confirm(`Record EMI payment of ${currency}${loan.monthlyEmi.toLocaleString('en-IN')} for ${loan.name} into your ${currentMonthYear} Daily Hisab?`)) {
         store.payEmiForLoan(loanId, currentMonthYear);
         renderLoansView(container, currentMonthYear);
       }
@@ -205,7 +205,7 @@ export function renderLoansView(container, currentMonthYear) {
   container.querySelectorAll('.delete-loan-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const loanId = btn.getAttribute('data-id');
-      if (confirm('Are you sure you want to delete this loan record?')) {
+      if (loanId && confirm('Are you sure you want to delete this loan record?')) {
         store.deleteLoan(loanId);
         renderLoansView(container, currentMonthYear);
       }
@@ -213,7 +213,7 @@ export function renderLoansView(container, currentMonthYear) {
   });
 }
 
-function escapeHTML(str) {
+function escapeHTML(str: string): string {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

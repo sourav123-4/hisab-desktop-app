@@ -9,29 +9,40 @@ import {
 } from './firebase.js';
 
 let isCloudConnected = false;
-let syncListeners = [];
+let syncListeners: Array<(status: boolean) => void> = [];
 
-export function onCloudStatusChange(callback) {
+export function onCloudStatusChange(callback: (status: boolean) => void): void {
   if (typeof callback === 'function') {
     syncListeners.push(callback);
     callback(isCloudConnected);
   }
 }
 
-function updateCloudStatus(status) {
+function updateCloudStatus(status: boolean): void {
   isCloudConnected = status;
   syncListeners.forEach(cb => cb(isCloudConnected));
 }
 
-function getSafeUid() {
+function getSafeUid(): string | null {
   const user = auth?.currentUser;
   if (user && !user.isAnonymous && user.uid) {
     return String(user.uid).replace(/[^a-zA-Z0-9_-]/g, '_');
   }
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('daily_hisab_last_known_user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.uid) {
+          return String(parsed.uid).replace(/[^a-zA-Z0-9_-]/g, '_');
+        }
+      }
+    }
+  } catch (e) {}
   return null;
 }
 
-function getCollectionRef(collectionName) {
+function getCollectionRef(collectionName: string) {
   if (!db) return null;
   const safeUid = getSafeUid();
   if (safeUid) {
@@ -40,7 +51,7 @@ function getCollectionRef(collectionName) {
   return collection(db, collectionName);
 }
 
-function getDocRef(collectionName, id) {
+function getDocRef(collectionName: string, id: string) {
   if (!db || !collectionName || !id) return null;
   const safeUid = getSafeUid();
   const safeId = String(id).replace(/\//g, '_');
@@ -50,8 +61,7 @@ function getDocRef(collectionName, id) {
   return doc(db, collectionName, safeId);
 }
 
-// 1. Push Document to Firestore
-export async function saveToCloud(collectionName, id, data) {
+export async function saveToCloud(collectionName: string, id: string, data: any): Promise<any> {
   const docRef = getDocRef(collectionName, id);
   if (!docRef) return false;
   try {
@@ -72,8 +82,7 @@ export async function saveToCloud(collectionName, id, data) {
   }
 }
 
-// 2. Delete Document from Firestore
-export async function deleteFromCloud(collectionName, id) {
+export async function deleteFromCloud(collectionName: string, id: string): Promise<boolean> {
   const docRef = getDocRef(collectionName, id);
   if (!docRef) return false;
   try {
@@ -81,21 +90,20 @@ export async function deleteFromCloud(collectionName, id) {
     updateCloudStatus(true);
     console.log(`[Firestore Delete] Deleted ${collectionName}/${id}`);
     return true;
-  } catch (err) {
+  } catch (err: any) {
     console.warn(`[Firestore Delete Failed] ${collectionName}/${id}:`, err.message);
     updateCloudStatus(false);
     return false;
   }
 }
 
-// 3. Real-time Subscription to Firestore Collections
-export function subscribeToCloudCollection(collectionName, onUpdateCallback) {
+export function subscribeToCloudCollection(collectionName: string, onUpdateCallback: (items: any[]) => void): () => void {
   const colRef = getCollectionRef(collectionName);
   if (!colRef) return () => {};
   try {
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       updateCloudStatus(true);
-      const items = [];
+      const items: any[] = [];
       snapshot.forEach(docSnap => {
         items.push(docSnap.data());
       });
@@ -107,42 +115,36 @@ export function subscribeToCloudCollection(collectionName, onUpdateCallback) {
       updateCloudStatus(false);
     });
     return unsubscribe;
-  } catch (err) {
+  } catch (err: any) {
     console.warn(`[Firestore Subscribe Failed] ${collectionName}:`, err.message);
     updateCloudStatus(false);
     return () => {};
   }
 }
 
-// 4. Batch Sync Full Data Payload to Firestore
-export async function fullSyncToCloud(storeData) {
+export async function fullSyncToCloud(storeData: any): Promise<boolean> {
   if (!db || !storeData) return false;
   try {
-    // Sync Transactions
     if (Array.isArray(storeData.transactions)) {
       for (const tx of storeData.transactions) {
         await saveToCloud('transactions', tx.id, tx);
       }
     }
-    // Sync Salary
     if (Array.isArray(storeData.salary)) {
       for (const sal of storeData.salary) {
         await saveToCloud('salary', sal.id, sal);
       }
     }
-    // Sync Loans
     if (Array.isArray(storeData.loans)) {
       for (const loan of storeData.loans) {
         await saveToCloud('loans', loan.id, loan);
       }
     }
-    // Sync Investments
     if (Array.isArray(storeData.investments)) {
       for (const inv of storeData.investments) {
         await saveToCloud('investments', inv.id, inv);
       }
     }
-    // Sync Budgets
     if (storeData.budgets) {
       await saveToCloud('settings', 'budgets', { categories: storeData.budgets });
     }

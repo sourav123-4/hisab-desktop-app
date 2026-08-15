@@ -1,6 +1,7 @@
 import { store } from '../store.js';
+import type { Transaction } from '../../types/index.js';
 
-export function renderHisabView(container, currentMonthYear) {
+export function renderHisabView(container: HTMLElement, currentMonthYear: string): void {
   const txs = store.getTransactions(currentMonthYear);
   const currency = store.data.currency || '₹';
 
@@ -9,7 +10,6 @@ export function renderHisabView(container, currentMonthYear) {
   const totalEmi = txs.filter(t => t.type === 'emi').reduce((acc, t) => acc + t.amount, 0);
 
   container.innerHTML = `
-    <!-- Top Summary Metrics for Hisab -->
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-header">
@@ -45,7 +45,6 @@ export function renderHisabView(container, currentMonthYear) {
       </div>
     </div>
 
-    <!-- Main Hisab Card -->
     <div class="card">
       <div class="card-header">
         <div>
@@ -55,7 +54,6 @@ export function renderHisabView(container, currentMonthYear) {
         <button class="btn btn-primary" id="addHisabBtn">+ Add New Hisab Entry</button>
       </div>
 
-      <!-- Filters & Search Toolbar -->
       <div style="display: flex; gap: 12px; flex-wrap: wrap;">
         <input type="text" id="hisabSearchInput" placeholder="🔍 Search entries by title, merchant or notes..." class="form-control" style="flex: 1; min-width: 220px;">
         <select id="hisabCategoryFilter" class="form-control" style="width: 170px;">
@@ -80,7 +78,6 @@ export function renderHisabView(container, currentMonthYear) {
         </select>
       </div>
 
-      <!-- Transactions Table -->
       <div class="table-responsive">
         <table class="custom-table" id="hisabTable">
           <thead>
@@ -102,11 +99,10 @@ export function renderHisabView(container, currentMonthYear) {
     </div>
   `;
 
-  // Attach filter handlers
-  const searchInput = container.querySelector('#hisabSearchInput');
-  const catFilter = container.querySelector('#hisabCategoryFilter');
-  const typeFilter = container.querySelector('#hisabTypeFilter');
-  const tbody = container.querySelector('#hisabTableBody');
+  const searchInput = container.querySelector('#hisabSearchInput') as HTMLInputElement;
+  const catFilter = container.querySelector('#hisabCategoryFilter') as HTMLSelectElement;
+  const typeFilter = container.querySelector('#hisabTypeFilter') as HTMLSelectElement;
+  const tbody = container.querySelector('#hisabTableBody') as HTMLElement;
 
   const filterRows = () => {
     const query = searchInput.value.toLowerCase().trim();
@@ -131,7 +127,7 @@ export function renderHisabView(container, currentMonthYear) {
   attachActionListeners(tbody, currentMonthYear, container, txs);
 }
 
-function renderTableRows(txs, currency) {
+function renderTableRows(txs: Transaction[], currency: string): string {
   if (txs.length === 0) {
     return `<tr><td colspan="7" class="empty-state">No hisab entries found matching filters.</td></tr>`;
   }
@@ -162,25 +158,26 @@ function renderTableRows(txs, currency) {
   `).join('');
 }
 
-function attachActionListeners(tbody, currentMonthYear, container, txs) {
-  // Edit Listener
+function attachActionListeners(tbody: HTMLElement, currentMonthYear: string, container: HTMLElement, txs: Transaction[]): void {
   tbody.querySelectorAll('.edit-tx-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
       const tx = txs.find(t => t.id === id);
       if (!tx) return;
 
-      const form = document.getElementById('txForm');
+      const form = document.getElementById('txForm') as HTMLFormElement | null;
       if (!form) return;
 
       form.dataset.editingId = tx.id;
-      document.getElementById('txTitle').value = tx.title || '';
-      document.getElementById('txAmount').value = tx.amount || '';
-      document.getElementById('txCategory').value = tx.category || 'Food';
-      document.getElementById('txType').value = tx.type || 'expense';
-      document.getElementById('txPaymentMethod').value = tx.paymentMethod || 'UPI';
-      document.getElementById('txDate').value = tx.date || new Date().toISOString().split('T')[0];
-      document.getElementById('txNotes').value = tx.notes || '';
+      const editIdInput = document.getElementById('txEditId') as HTMLInputElement | null;
+      if (editIdInput) editIdInput.value = tx.id;
+      (document.getElementById('txTitle') as HTMLInputElement).value = tx.title || '';
+      (document.getElementById('txAmount') as HTMLInputElement).value = String(tx.amount || '');
+      (document.getElementById('txCategory') as HTMLSelectElement).value = tx.category || 'Food';
+      (document.getElementById('txType') as HTMLSelectElement).value = tx.type || 'expense';
+      (document.getElementById('txPaymentMethod') as HTMLSelectElement).value = tx.paymentMethod || 'UPI';
+      (document.getElementById('txDate') as HTMLInputElement).value = tx.date || new Date().toISOString().split('T')[0];
+      (document.getElementById('txNotes') as HTMLInputElement).value = tx.notes || '';
 
       const modalTitle = document.querySelector('#txModal .modal-header h3');
       if (modalTitle) modalTitle.textContent = '✏️ Edit Daily Hisab Entry';
@@ -190,11 +187,10 @@ function attachActionListeners(tbody, currentMonthYear, container, txs) {
     });
   });
 
-  // Delete Listener
   tbody.querySelectorAll('.delete-tx-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
-      if (confirm('Are you sure you want to delete this hisab entry?')) {
+      if (id && confirm('Are you sure you want to delete this hisab entry?')) {
         store.deleteTransaction(id);
         renderHisabView(container, currentMonthYear);
       }
@@ -202,7 +198,7 @@ function attachActionListeners(tbody, currentMonthYear, container, txs) {
   });
 }
 
-function escapeHTML(str) {
+function escapeHTML(str: string): string {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

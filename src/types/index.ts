@@ -1,0 +1,128 @@
+export type TransactionType = 'expense' | 'income' | 'investment' | 'emi';
+export type CategoryName = 'Food' | 'Bills' | 'Transport' | 'Shopping' | 'Entertainment' | 'Health' | 'F&O Trading' | 'Stocks' | 'EMI' | 'Investment' | 'Income' | 'Others';
+export type PaymentMethod = 'UPI' | 'Cash' | 'Credit Card' | 'NetBanking' | 'Auto-Debit';
+export type ThemeName = 'dark' | 'light' | 'oled' | 'emerald';
+export type DebtType = 'lent' | 'borrowed';
+
+export interface Transaction {
+  id: string;
+  date: string;
+  title: string;
+  amount: number;
+  category: CategoryName | string;
+  type: TransactionType;
+  paymentMethod: PaymentMethod | string;
+  notes?: string;
+  isInternalSync?: boolean;
+}
+
+export interface Loan {
+  id: string;
+  name: string;
+  lender: string;
+  totalPrincipal: number;
+  remainingAmount: number;
+  monthlyEmi: number;
+  interestRate: number;
+  emiDay: number;
+  status: 'Active' | 'Paid Off';
+}
+
+export interface Investment {
+  id: string;
+  name: string;
+  category: string;
+  type: string;
+  monthlySip: number;
+  totalInvested: number;
+  currentValue: number;
+  platform: string;
+  startDate: string;
+}
+
+export interface SalaryRecord {
+  id: string;
+  monthYear: string;
+  company: string;
+  grossAmount: number;
+  deductions: number;
+  netAmount: number;
+  receivedDate: string;
+  status: 'credited' | 'pending';
+  notes?: string;
+}
+
+export interface DebtRecord {
+  id: string;
+  personName: string;
+  type: DebtType; // lent = money given to others, borrowed = money taken from others
+  amount: number;
+  settledAmount: number;
+  date: string;
+  dueDate?: string;
+  notes?: string;
+  status: 'pending' | 'partially_paid' | 'settled';
+}
+
+export interface CategoryBudgets {
+  [category: string]: number;
+}
+
+export interface MonthlyMetrics {
+  totalIncome: number;
+  totalExpenses: number;
+  totalInvestments: number;
+  totalEmisPaid: number;
+  netOutflow: number;
+  monthlyRemainingBalance: number;
+  openingBalance: number;
+  availableBalance: number;
+  remainingBalance: number;
+  netSavings: number;
+}
+
+export interface SecuritySettings {
+  enabled: boolean;
+  hasPin: boolean;
+  fingerprintEnabled: boolean;
+  notificationsEnabled: boolean;
+}
+
+export interface StoreData {
+  currency: string;
+  theme: ThemeName;
+  securityPinEnabled: boolean;
+  securityPinHash: string;
+  fingerprintEnabled: boolean;
+  notificationsEnabled: boolean;
+  salary: SalaryRecord[];
+  transactions: Transaction[];
+  loans: Loan[];
+  investments: Investment[];
+  debts: DebtRecord[];
+  budgets: CategoryBudgets;
+}
+
+declare global {
+  interface Window {
+    onHisabStoreUpdate?: () => void;
+    electronAPI?: {
+      appVersion: string;
+      platform: string;
+      isElectron: boolean;
+      triggerDictation: () => Promise<boolean>;
+      transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType: string) => Promise<{ success: boolean; text?: string; error?: string }>;
+      openExternalUrl: (url: string) => Promise<boolean>;
+      getAuthCallbackUrl: () => Promise<string>;
+      startGoogleOAuth: (options: Record<string, any>) => Promise<boolean>;
+      onGoogleAuthSuccess: (callback: (data: any) => void) => void;
+      sendDesktopNotification: (payload: { title: string; body: string }) => Promise<boolean>;
+      promptTouchID: () => Promise<{ success: boolean; reason?: string }>;
+      onOpenQuickAdd: (callback: () => void) => void;
+    };
+    SpeechRecognition?: any;
+    webkitSpeechRecognition?: any;
+    AudioContext?: any;
+    webkitAudioContext?: any;
+  }
+}

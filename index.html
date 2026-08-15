@@ -71,6 +71,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           Salary & Income
         </div>
+        <div class="nav-item" data-tab="debts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Udhar & Debts
+        </div>
         <div class="nav-item" data-tab="budgets">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Budgets & Backup
@@ -87,7 +91,7 @@
         </div>
 
         <button id="themeToggleBtn" class="btn btn-secondary btn-sm" style="width: 100%; justify-content: center; gap: 6px; margin-top: 6px;">
-          🌙 Toggle Dark / Light Theme
+          ⚙️ Settings & Themes
         </button>
         <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 4px;">
           Offline Desktop App v1.0 • Secure
@@ -367,6 +371,64 @@
     </div>
   </div>
 
+  <!-- Add / Edit Udhar Debt Modal -->
+  <div class="modal-overlay" id="debtModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 id="debtModalTitle">🤝 Add New Udhar Record</h3>
+        <button class="close-btn" data-close="debtModal">&times;</button>
+      </div>
+      <form id="debtForm">
+        <input type="hidden" id="debtEditId" value="">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Person Name *</label>
+            <input type="text" id="debtPersonName" class="form-control" placeholder="e.g. Rahul, Friend, Cousin" required>
+          </div>
+          <div class="form-group">
+            <label>Udhar Type *</label>
+            <select id="debtType" class="form-control">
+              <option value="lent">🟢 Given Out (Lent)</option>
+              <option value="borrowed">🔴 Taken In (Borrowed)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Total Udhar Amount (₹) *</label>
+            <input type="number" step="any" id="debtAmount" class="form-control" placeholder="5000" required>
+          </div>
+          <div class="form-group">
+            <label>Already Settled Amount (₹)</label>
+            <input type="number" step="any" id="debtSettledAmount" class="form-control" placeholder="0" value="0">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date Given / Borrowed</label>
+            <input type="date" id="debtDate" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Expected Due Date (Optional)</label>
+            <input type="date" id="debtDueDate" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes / Reason (Optional)</label>
+          <input type="text" id="debtNotes" class="form-control" placeholder="e.g. Trip expenses, emergency loan">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-close="debtModal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="debtSaveBtn">Save Udhar Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Smart Voice Entry Modal -->
   <div class="modal-overlay" id="voiceModal">
     <div class="modal-container" style="text-align: center; max-width: 520px;">
@@ -415,6 +477,6 @@
     </div>
   </div>
 
-  <script type="module" src="./src/js/app.js"></script>
+  <script type="module" src="./src/js/app.ts"></script>
 </body>
 </html>

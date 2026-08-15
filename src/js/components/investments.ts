@@ -1,6 +1,7 @@
 import { store } from '../store.js';
+import type { Investment, Transaction } from '../../types/index.js';
 
-export function renderInvestmentsView(container, currentMonthYear) {
+export function renderInvestmentsView(container: HTMLElement, currentMonthYear: string): void {
   const investments = store.getInvestments();
   const monthTxs = store.getTransactions(currentMonthYear);
   const investmentTxs = monthTxs.filter(t => t.type === 'investment' || t.category === 'Investment' || /sip|invest/i.test(t.title));
@@ -8,16 +9,14 @@ export function renderInvestmentsView(container, currentMonthYear) {
 
   const totalInvestedPortfolio = investments.reduce((acc, i) => acc + (i.totalInvested || 0), 0);
   const totalCurrentValue = investments.reduce((acc, i) => acc + (i.currentValue || 0), 0);
-  const totalMonthlySipTarget = investments.reduce((acc, i) => acc + (i.monthlySip || 0), 0);
 
   const monthInvestmentOutflow = investmentTxs.reduce((sum, t) => sum + t.amount, 0);
   const totalInvested = totalInvestedPortfolio + monthInvestmentOutflow;
   const netGain = totalCurrentValue - totalInvestedPortfolio;
-  const gainPercent = totalInvestedPortfolio > 0 ? ((netGain / totalInvestedPortfolio) * 100).toFixed(2) : 0;
+  const gainPercent = totalInvestedPortfolio > 0 ? ((netGain / totalInvestedPortfolio) * 100).toFixed(2) : '0';
   const isPositive = netGain >= 0;
 
   container.innerHTML = `
-    <!-- Portfolio Overview Cards -->
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-header">
@@ -55,7 +54,6 @@ export function renderInvestmentsView(container, currentMonthYear) {
       </div>
     </div>
 
-    <!-- Logged Investment Transactions in current month -->
     <div class="card">
       <div class="card-header">
         <h3 class="card-title">Investment & SIP Outflow Entries (${currentMonthYear})</h3>
@@ -75,7 +73,7 @@ export function renderInvestmentsView(container, currentMonthYear) {
           <tbody>
             ${investmentTxs.length === 0 ? `
               <tr><td colspan="5" class="empty-state">No investment entries logged for ${currentMonthYear}. Use AI Voice or Quick Entry to add investments!</td></tr>
-            ` : investmentTxs.map(tx => `
+            ` : investmentTxs.map((tx: Transaction) => `
               <tr>
                 <td style="font-weight: 600;">${tx.date}</td>
                 <td><strong>${escapeHTML(tx.title)}</strong></td>
@@ -89,7 +87,6 @@ export function renderInvestmentsView(container, currentMonthYear) {
       </div>
     </div>
 
-    <!-- Investments Portfolio Table -->
     <div class="card">
       <div class="card-header">
         <div>
@@ -119,9 +116,9 @@ export function renderInvestmentsView(container, currentMonthYear) {
           <tbody>
             ${investments.length === 0 ? `
               <tr><td colspan="8" class="empty-state">No holdings added yet. Click "+ Add Investment / SIP" to create a portfolio holding.</td></tr>
-            ` : investments.map(inv => {
+            ` : investments.map((inv: Investment) => {
               const gain = inv.currentValue - inv.totalInvested;
-              const roi = inv.totalInvested > 0 ? ((gain / inv.totalInvested) * 100).toFixed(1) : 0;
+              const roi = inv.totalInvested > 0 ? ((gain / inv.totalInvested) * 100).toFixed(1) : '0';
               const positive = gain >= 0;
 
               return `
@@ -162,17 +159,17 @@ export function renderInvestmentsView(container, currentMonthYear) {
     </div>
   `;
 
-  // Attach Event Handlers
   container.querySelector('#addFnoBtn')?.addEventListener('click', () => {
-    const form = document.getElementById('invForm');
+    const form = document.getElementById('invForm') as HTMLFormElement | null;
     if (form) {
       form.reset();
       delete form.dataset.editingId;
-      if (document.getElementById('invEditId')) document.getElementById('invEditId').value = '';
-      document.getElementById('invName').value = 'Zerodha F&O Capital';
-      document.getElementById('invCategory').value = 'F&O Trading';
-      document.getElementById('invType').value = 'F&O Capital';
-      document.getElementById('invPlatform').value = 'Zerodha';
+      const editId = document.getElementById('invEditId') as HTMLInputElement | null;
+      if (editId) editId.value = '';
+      (document.getElementById('invName') as HTMLInputElement).value = 'Zerodha F&O Capital';
+      (document.getElementById('invCategory') as HTMLSelectElement).value = 'F&O Trading';
+      (document.getElementById('invType') as HTMLSelectElement).value = 'F&O Capital';
+      (document.getElementById('invPlatform') as HTMLInputElement).value = 'Zerodha';
     }
     const modalTitle = document.getElementById('invModalTitle');
     if (modalTitle) modalTitle.textContent = '📈 Add Stock / F&O Trading Capital';
@@ -186,18 +183,19 @@ export function renderInvestmentsView(container, currentMonthYear) {
       const inv = investments.find(i => i.id === invId);
       if (!inv) return;
 
-      const form = document.getElementById('invForm');
+      const form = document.getElementById('invForm') as HTMLFormElement | null;
       if (!form) return;
 
       form.dataset.editingId = inv.id;
-      if (document.getElementById('invEditId')) document.getElementById('invEditId').value = inv.id;
-      document.getElementById('invName').value = inv.name || '';
-      document.getElementById('invCategory').value = inv.category || 'Mutual Funds';
-      document.getElementById('invType').value = inv.type || 'SIP';
-      document.getElementById('invMonthlySip').value = inv.monthlySip || 0;
-      document.getElementById('invPlatform').value = inv.platform || '';
-      document.getElementById('invTotalInvested').value = inv.totalInvested || 0;
-      document.getElementById('invCurrentValue').value = inv.currentValue || 0;
+      const editId = document.getElementById('invEditId') as HTMLInputElement | null;
+      if (editId) editId.value = inv.id;
+      (document.getElementById('invName') as HTMLInputElement).value = inv.name || '';
+      (document.getElementById('invCategory') as HTMLSelectElement).value = inv.category || 'Mutual Funds';
+      (document.getElementById('invType') as HTMLSelectElement).value = inv.type || 'SIP';
+      (document.getElementById('invMonthlySip') as HTMLInputElement).value = String(inv.monthlySip || 0);
+      (document.getElementById('invPlatform') as HTMLInputElement).value = inv.platform || '';
+      (document.getElementById('invTotalInvested') as HTMLInputElement).value = String(inv.totalInvested || 0);
+      (document.getElementById('invCurrentValue') as HTMLInputElement).value = String(inv.currentValue || 0);
 
       const modalTitle = document.getElementById('invModalTitle');
       if (modalTitle) modalTitle.textContent = '✏️ Edit Investment / F&O Holding';
@@ -211,7 +209,7 @@ export function renderInvestmentsView(container, currentMonthYear) {
     btn.addEventListener('click', () => {
       const invId = btn.getAttribute('data-id');
       const inv = investments.find(i => i.id === invId);
-      if (confirm(`Log SIP investment outflow of ${currency}${inv.monthlySip.toLocaleString('en-IN')} for ${inv.name} into your ${currentMonthYear} Daily Hisab?`)) {
+      if (invId && inv && confirm(`Log SIP investment outflow of ${currency}${inv.monthlySip.toLocaleString('en-IN')} for ${inv.name} into your ${currentMonthYear} Daily Hisab?`)) {
         store.paySipForInvestment(invId, currentMonthYear);
         renderInvestmentsView(container, currentMonthYear);
       }
@@ -221,7 +219,7 @@ export function renderInvestmentsView(container, currentMonthYear) {
   container.querySelectorAll('.delete-inv-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const invId = btn.getAttribute('data-id');
-      if (confirm('Are you sure you want to delete this investment record?')) {
+      if (invId && confirm('Are you sure you want to delete this investment record?')) {
         store.deleteInvestment(invId);
         renderInvestmentsView(container, currentMonthYear);
       }
@@ -229,7 +227,7 @@ export function renderInvestmentsView(container, currentMonthYear) {
   });
 }
 
-function escapeHTML(str) {
+function escapeHTML(str: string): string {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

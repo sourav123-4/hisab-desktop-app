@@ -1,21 +1,15 @@
-/**
- * Login, Register & User Account Modal Component for Daily Hisab
- */
 import { 
   loginWithEmail, 
   registerWithEmail, 
   loginWithGoogle, 
   logoutUser, 
-  resetPassword, 
-  getCurrentUser 
+  resetPassword 
 } from '../firebase.js';
-import { store } from '../store.js';
 
-export function renderAuthModalHTML() {
+export function renderAuthModalHTML(): string {
   return `
     <div class="modal-overlay" id="authModal">
       <div class="modal-container" style="max-width: 440px; padding: 26px;">
-        <!-- Premium Modal Header -->
         <div class="modal-header" style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div id="authHeaderIcon" style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(168, 85, 247, 0.25) 100%); border: 1px solid rgba(168, 85, 247, 0.35); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(168, 85, 247, 0.15);">🔑</div>
@@ -29,16 +23,13 @@ export function renderAuthModalHTML() {
 
         <div id="authAlert" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; margin-bottom: 16px;"></div>
 
-        <!-- UNAUTHENTICATED SECTION (Tabs, Forms, Divider, Google OAuth) -->
         <div id="unauthSection">
-          <!-- Auth Tabs -->
           <div id="authTabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 18px; gap: 12px;">
             <button class="auth-tab-btn active" data-tab="login" style="background: none; border: none; padding: 8px 12px; color: var(--accent-primary); font-weight: 700; border-bottom: 2px solid var(--accent-primary); cursor: pointer;">Sign In</button>
             <button class="auth-tab-btn" data-tab="register" style="background: none; border: none; padding: 8px 12px; color: var(--text-secondary); font-weight: 600; cursor: pointer;">Create Account</button>
             <button class="auth-tab-btn" data-tab="forgot" style="background: none; border: none; padding: 8px 12px; color: var(--text-secondary); font-weight: 600; cursor: pointer;">Reset Password</button>
           </div>
 
-          <!-- LOGIN FORM -->
           <form id="loginForm">
             <div class="form-group">
               <label>Email Address *</label>
@@ -53,7 +44,6 @@ export function renderAuthModalHTML() {
             </button>
           </form>
 
-          <!-- REGISTER FORM -->
           <form id="registerForm" style="display: none;">
             <div class="form-group">
               <label>Full Name</label>
@@ -72,7 +62,6 @@ export function renderAuthModalHTML() {
             </button>
           </form>
 
-          <!-- FORGOT PASSWORD FORM -->
           <form id="forgotForm" style="display: none;">
             <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 14px;">Enter your registered email address to receive a password reset link.</p>
             <div class="form-group">
@@ -84,7 +73,6 @@ export function renderAuthModalHTML() {
             </button>
           </form>
 
-          <!-- DIVIDER & GOOGLE OAUTH -->
           <div id="authDivider" style="display: flex; align-items: center; margin: 18px 0; gap: 10px;">
             <div style="flex: 1; height: 1px; background: var(--border-color);"></div>
             <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">or</span>
@@ -97,7 +85,6 @@ export function renderAuthModalHTML() {
           </button>
         </div>
 
-        <!-- AUTHENTICATED USER LOGGED IN VIEW -->
         <div id="loggedInView" style="display: none; text-align: center; padding: 10px 0 6px 0;">
           <div id="userAvatarBox" style="width: 64px; height: 64px; border-radius: 50%; background: var(--grad-primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; margin: 0 auto 14px auto; box-shadow: 0 0 25px rgba(168, 85, 247, 0.4); text-transform: uppercase;">👤</div>
           
@@ -118,19 +105,19 @@ export function renderAuthModalHTML() {
   `;
 }
 
-export function initAuthModalListeners() {
+export function initAuthModalListeners(): void {
   const modal = document.getElementById('authModal');
   if (!modal) return;
 
   const tabBtns = modal.querySelectorAll('.auth-tab-btn');
-  const loginForm = document.getElementById('loginForm');
-  const registerForm = document.getElementById('registerForm');
-  const forgotForm = document.getElementById('forgotForm');
+  const loginForm = document.getElementById('loginForm') as HTMLElement | null;
+  const registerForm = document.getElementById('registerForm') as HTMLElement | null;
+  const forgotForm = document.getElementById('forgotForm') as HTMLElement | null;
   const googleBtn = document.getElementById('googleAuthBtn');
   const logoutBtn = document.getElementById('logoutBtn');
   const alertBox = document.getElementById('authAlert');
 
-  const showAlert = (msg, isError = true) => {
+  const showAlert = (msg: string, isError: boolean = true) => {
     if (!alertBox) return;
     alertBox.style.display = 'block';
     alertBox.style.background = isError ? 'var(--accent-danger-light)' : 'var(--accent-success-light)';
@@ -143,27 +130,26 @@ export function initAuthModalListeners() {
     if (alertBox) alertBox.style.display = 'none';
   };
 
-  // Switch Auth Tabs
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       hideAlert();
       tabBtns.forEach(b => {
         b.classList.remove('active');
-        b.style.color = 'var(--text-secondary)';
-        b.style.borderBottom = 'none';
+        (b as HTMLElement).style.color = 'var(--text-secondary)';
+        (b as HTMLElement).style.borderBottom = 'none';
       });
       btn.classList.add('active');
-      btn.style.color = 'var(--accent-primary)';
-      btn.style.borderBottom = '2px solid var(--accent-primary)';
+      (btn as HTMLElement).style.color = 'var(--accent-primary)';
+      (btn as HTMLElement).style.borderBottom = '2px solid var(--accent-primary)';
 
       const tab = btn.getAttribute('data-tab');
-      loginForm.style.display = tab === 'login' ? 'block' : 'none';
-      registerForm.style.display = tab === 'register' ? 'block' : 'none';
-      forgotForm.style.display = tab === 'forgot' ? 'block' : 'none';
+      if (loginForm) loginForm.style.display = tab === 'login' ? 'block' : 'none';
+      if (registerForm) registerForm.style.display = tab === 'register' ? 'block' : 'none';
+      if (forgotForm) forgotForm.style.display = tab === 'forgot' ? 'block' : 'none';
     });
   });
 
-  const formatAuthError = (err, type = 'email') => {
+  const formatAuthError = (err: any, type: string = 'email') => {
     const code = err?.code || '';
     if (code === 'auth/unauthorized-domain') {
       return '⚠️ Authorized Domain Required: Go to Firebase Console → Authentication → Settings → Authorized domains and add "localhost" & "127.0.0.1".';
@@ -186,12 +172,11 @@ export function initAuthModalListeners() {
     return String(err?.message || 'Authentication failed').replace(/^Firebase:\s*/i, '');
   };
 
-  // Login Submit
   loginForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideAlert();
-    const email = document.getElementById('loginEmail').value.trim();
-    const pass = document.getElementById('loginPassword').value.trim();
+    const email = (document.getElementById('loginEmail') as HTMLInputElement).value.trim();
+    const pass = (document.getElementById('loginPassword') as HTMLInputElement).value.trim();
 
     try {
       showAlert('⏳ Signing in...', false);
@@ -204,13 +189,12 @@ export function initAuthModalListeners() {
     }
   });
 
-  // Register Submit
   registerForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideAlert();
-    const name = document.getElementById('regName').value.trim();
-    const email = document.getElementById('regEmail').value.trim();
-    const pass = document.getElementById('regPassword').value.trim();
+    const name = (document.getElementById('regName') as HTMLInputElement).value.trim();
+    const email = (document.getElementById('regEmail') as HTMLInputElement).value.trim();
+    const pass = (document.getElementById('regPassword') as HTMLInputElement).value.trim();
 
     try {
       showAlert('⏳ Creating account...', false);
@@ -223,11 +207,10 @@ export function initAuthModalListeners() {
     }
   });
 
-  // Forgot Submit
   forgotForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideAlert();
-    const email = document.getElementById('forgotEmail').value.trim();
+    const email = (document.getElementById('forgotEmail') as HTMLInputElement).value.trim();
 
     try {
       showAlert('⏳ Sending reset link...', false);
@@ -239,7 +222,6 @@ export function initAuthModalListeners() {
     }
   });
 
-  // Google OAuth
   googleBtn?.addEventListener('click', async () => {
     hideAlert();
     try {
@@ -253,18 +235,17 @@ export function initAuthModalListeners() {
     }
   });
 
-  // Logout Submit
   logoutBtn?.addEventListener('click', async () => {
     try {
       await logoutUser();
       modal.classList.remove('active');
-    } catch (err) {
+    } catch (err: any) {
       showAlert(err.message);
     }
   });
 }
 
-export function updateAuthModalUI(user) {
+export function updateAuthModalUI(user: any): void {
   const modal = document.getElementById('authModal');
   if (!modal) return;
 
@@ -278,7 +259,6 @@ export function updateAuthModalUI(user) {
   if (alertBox) alertBox.style.display = 'none';
 
   if (user && !user.isAnonymous) {
-    // User is logged in
     if (unauthSection) unauthSection.style.display = 'none';
     if (loggedInView) loggedInView.style.display = 'block';
     if (modalIcon) modalIcon.textContent = '👤';
@@ -289,11 +269,13 @@ export function updateAuthModalUI(user) {
     const email = user.email || '';
     const initial = name.charAt(0).toUpperCase();
 
-    document.getElementById('userDisplayName').textContent = name;
-    document.getElementById('userDisplayEmail').textContent = email;
-    document.getElementById('userAvatarBox').textContent = initial;
+    const nameEl = document.getElementById('userDisplayName');
+    if (nameEl) nameEl.textContent = name;
+    const emailEl = document.getElementById('userDisplayEmail');
+    if (emailEl) emailEl.textContent = email;
+    const avatarEl = document.getElementById('userAvatarBox');
+    if (avatarEl) avatarEl.textContent = initial;
   } else {
-    // Unauthenticated or Anonymous Guest
     if (unauthSection) unauthSection.style.display = 'block';
     if (loggedInView) loggedInView.style.display = 'none';
     if (modalIcon) modalIcon.textContent = '🔑';
