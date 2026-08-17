@@ -93,7 +93,7 @@ function startApp() {
 
       try {
         localStorage.setItem('daily_hisab_last_known_user', JSON.stringify({ displayName: name, email: email }));
-      } catch (e) {}
+      } catch (e) { }
     } else {
       if (userNameEl) userNameEl.textContent = 'Sign In / Account';
       if (userSubEl) userSubEl.textContent = 'Cloud Sync Account';
@@ -101,7 +101,7 @@ function startApp() {
 
       try {
         localStorage.removeItem('daily_hisab_last_known_user');
-      } catch (e) {}
+      } catch (e) { }
     }
   });
 
