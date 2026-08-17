@@ -1,6 +1,6 @@
 {
   "name": "daily-hisab",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Daily Hisab desktop app for expenses, investments, loans/EMIs, and salary tracking",
   "main": "main.js",
   "type": "module",

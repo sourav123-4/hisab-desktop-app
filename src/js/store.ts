@@ -488,7 +488,7 @@ class Store {
       hash = ((hash << 5) - hash) + pinCode.charCodeAt(i);
       hash |= 0;
     }
-    return String(hash) === this.data.securityPinHash;
+    return String(hash) === String(this.data.securityPinHash);
   }
 
   setNotificationsEnabled(enabled: boolean): void {

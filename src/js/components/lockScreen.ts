@@ -3,6 +3,7 @@ import { store } from '../store.js';
 export function initLockScreen(): void {
   const security = store.getSecuritySettings();
   if (!security.enabled || (!security.hasPin && !security.fingerprintEnabled)) {
+    document.documentElement.classList.remove('app-is-locked');
     return;
   }
 
@@ -83,19 +84,24 @@ export function initLockScreen(): void {
         } else {
           if (errorMsg) {
             errorMsg.style.color = '#ef4444';
-            errorMsg.textContent = `❌ ${res?.reason || 'Touch ID verification failed. Try PIN.'}`;
+            errorMsg.textContent = `❌ ${res?.reason || 'Touch ID verification failed. Enter 4-digit PIN.'}`;
           }
           return;
         }
       } catch (err: any) {
         console.warn('[Touch ID IPC Error]', err);
+        if (errorMsg) {
+          errorMsg.style.color = '#ef4444';
+          errorMsg.textContent = '❌ Touch ID error. Please enter PIN.';
+        }
+        return;
       }
+    } else if (!security.hasPin) {
+      // Fallback auto-unlock only if no PIN is configured
+      setTimeout(() => {
+        unlockApp();
+      }, 500);
     }
-
-    // Fallback scan animation if electron API is unavailable
-    setTimeout(() => {
-      unlockApp();
-    }, 500);
   };
 
   const renderLockContent = () => {
