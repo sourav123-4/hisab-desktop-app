@@ -4,6 +4,7 @@ import {
   subscribeToCloudCollection, 
   fullSyncToCloud 
 } from './firebaseSync.js';
+import { cleanHisabTitle, parseNaturalLanguageHisab, detectCategoryFromText } from './aiParser.js';
 import type { 
   StoreData, 
   Transaction, 
@@ -220,8 +221,9 @@ class Store {
         (this.data.transactions || []).forEach(t => mergedMap.set(t.id, t));
         cloudTxs.forEach(t => mergedMap.set(t.id, t));
         const newTxs = Array.from(mergedMap.values()).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        if (JSON.stringify(newTxs) !== prevJson) {
-          this.data.transactions = newTxs;
+        this.data.transactions = newTxs;
+        this.rephraseAllEntries();
+        if (JSON.stringify(this.data.transactions) !== prevJson) {
           this.save(this.data);
           this.notifyStoreUpdate();
         }
@@ -368,12 +370,49 @@ class Store {
         }
       }
 
+      this.rephraseAllEntries(data);
       this.save(data);
       return data;
     } catch (e) {
       console.warn('Failed loading local data, resetting store', e);
       return this.sanitizeData(JSON.parse(JSON.stringify(sampleData)));
     }
+  }
+
+  rephraseAllEntries(targetData: StoreData = this.data): number {
+    if (!targetData || !Array.isArray(targetData.transactions)) return 0;
+    let count = 0;
+    targetData.transactions.forEach(tx => {
+      const originalTitle = tx.title || '';
+      const originalCategory = tx.category || 'Others';
+      const notes = tx.notes || '';
+      const combinedText = `${originalTitle} ${notes} ${tx.amount || ''}`.trim();
+      const parsed = parseNaturalLanguageHisab(combinedText);
+
+      let newCategory = originalCategory;
+      const detectedCat = detectCategoryFromText(combinedText);
+
+      if (detectedCat !== 'Others') {
+        newCategory = detectedCat;
+      } else if (parsed && parsed.category && (originalCategory === 'Others' || !originalCategory)) {
+        newCategory = parsed.category;
+      }
+
+      const newTitle = cleanHisabTitle(originalTitle, newCategory as string, tx.type);
+
+      if (newTitle !== originalTitle || newCategory !== originalCategory) {
+        tx.title = newTitle;
+        tx.category = newCategory;
+        saveToCloud('transactions', tx.id, tx);
+        count++;
+      }
+    });
+
+    if (count > 0 && targetData === this.data) {
+      this.save(targetData);
+      this.notifyStoreUpdate();
+    }
+    return count;
   }
 
   save(data: StoreData = this.data): void {
@@ -383,6 +422,13 @@ class Store {
       const sanitized = this.sanitizeData(data);
       if (storage) {
         storage.setItem(key, JSON.stringify(sanitized));
+
+        const isSecLocked = Boolean((sanitized.securityPinEnabled && sanitized.securityPinHash) || sanitized.fingerprintEnabled);
+        if (isSecLocked) {
+          storage.setItem('daily_hisab_security_locked', 'true');
+        } else {
+          storage.removeItem('daily_hisab_security_locked');
+        }
       }
       this.data = sanitized;
     } catch (e) {
@@ -484,22 +530,37 @@ class Store {
   }
 
   getTransactions(monthYearFilter: string | null = null): Transaction[] {
+    if (!Array.isArray(this.data.transactions)) return [];
+    this.rephraseAllEntries();
     if (!monthYearFilter) return this.data.transactions;
     return this.data.transactions.filter(tx => tx.date && tx.date.startsWith(monthYearFilter));
   }
 
   getRecentTransactions(limit: number = 7): Transaction[] {
     if (!Array.isArray(this.data.transactions)) return [];
+    this.rephraseAllEntries();
     return [...this.data.transactions].slice(0, limit);
   }
 
   addTransaction(tx: Partial<Transaction>): Transaction {
+    let category = tx.category || 'Others';
+    const textForCat = `${tx.title || ''} ${tx.notes || ''}`.trim();
+    const detected = detectCategoryFromText(textForCat);
+    if (detected !== 'Others' && (category === 'Others' || !tx.category)) {
+      category = detected;
+    }
+
+    let title = tx.title || 'Untitled Entry';
+    if (tx.title) {
+      title = cleanHisabTitle(tx.title, category as string, tx.type || 'expense');
+    }
+
     const newTx: Transaction = {
       id: tx.id || ('tx-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
       date: tx.date || new Date().toISOString().split('T')[0],
-      title: tx.title || 'Untitled Entry',
+      title: title,
       amount: parseFloat(String(tx.amount)) || 0,
-      category: tx.category || 'Others',
+      category: category,
       type: tx.type || 'expense',
       paymentMethod: tx.paymentMethod || 'UPI',
       notes: tx.notes || ''
@@ -754,12 +815,14 @@ class Store {
     return this.data.salary;
   }
 
-  addOrUpdateSalary(record: Partial<SalaryRecord> & { monthYear: string }): void {
-    const monthYear = record.monthYear;
-    const existingIndex = this.data.salary.findIndex(s => s.monthYear === monthYear);
+  addOrUpdateSalary(record: Partial<SalaryRecord> & { monthYear?: string }): void {
+    const id = record.id || 'sal-' + Date.now();
+    const existingIndex = this.data.salary.findIndex(s => s.id === id);
+    const monthYear = record.monthYear || new Date().toISOString().slice(0, 7);
+
     const salObj: SalaryRecord = {
-      id: existingIndex >= 0 ? this.data.salary[existingIndex].id : 'sal-' + Date.now(),
-      monthYear: monthYear,
+      id,
+      monthYear,
       company: record.company || 'Employer',
       grossAmount: parseFloat(String(record.grossAmount)) || 0,
       deductions: parseFloat(String(record.deductions)) || 0,
@@ -776,7 +839,7 @@ class Store {
     }
     saveToCloud('salary', salObj.id, salObj);
     this.save();
-    triggerToast(`💰 Salary Recorded: ₹${salObj.netAmount.toLocaleString('en-IN')} for ${salObj.monthYear}`);
+    triggerToast(`💰 Salary Recorded: ₹${salObj.netAmount.toLocaleString('en-IN')} for ${salObj.monthYear} (${salObj.company})`);
     this.notifyStoreUpdate();
   }
 

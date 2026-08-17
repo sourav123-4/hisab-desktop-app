@@ -29,6 +29,7 @@ export function initLockScreen(): void {
   let enteredPin = '';
 
   const unlockApp = () => {
+    document.documentElement.classList.remove('app-is-locked');
     window.removeEventListener('keydown', handleKeyDown);
     if (lockOverlay) {
       lockOverlay.style.opacity = '0';
@@ -206,4 +207,10 @@ export function initLockScreen(): void {
 
   window.addEventListener('keydown', handleKeyDown);
   renderLockContent();
+
+  if (security.fingerprintEnabled) {
+    setTimeout(() => {
+      triggerFingerprintScan();
+    }, 200);
+  }
 }

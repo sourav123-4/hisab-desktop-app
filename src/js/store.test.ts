@@ -29,12 +29,12 @@ const tx = store.addTransaction({
   date: '2026-08-15'
 });
 assert.strictEqual(tx.amount, 450);
-assert.strictEqual(tx.title, 'Test Grocery Purchase');
+assert.strictEqual(tx.title, 'Test Grocery');
 assert.strictEqual(store.getTransactions().length, 1);
 
-const editedTx = store.editTransaction(tx.id, { amount: 500, title: 'Updated Grocery Purchase' });
+const editedTx = store.editTransaction(tx.id, { amount: 500, title: 'Updated Grocery' });
 assert.strictEqual(editedTx?.amount, 500);
-assert.strictEqual(editedTx?.title, 'Updated Grocery Purchase');
+assert.strictEqual(editedTx?.title, 'Updated Grocery');
 console.log('✅ Test 2 Passed: Add & Edit Transaction');
 
 // Test 3: Calculate Monthly Metrics
@@ -168,7 +168,45 @@ assert.strictEqual(parsedMultiple[2].amount, 12000);
 assert.strictEqual(parsedMultiple[2].type, 'emi');
 console.log('✅ Test 12 Passed: AI Multi-Hisab Parser');
 
-// Test 13: Delete Operations & Clean Up
+// Test 14: Title Cleaning & Category Categorization (Food, Shopping, Transport, Invest, Borrow)
+const fishTx = parseNaturalLanguageHisab('i buy some fish 300');
+assert.strictEqual(fishTx?.title, 'Fish');
+assert.strictEqual(fishTx?.category, 'Food');
+
+const ladduTx = parseNaturalLanguageHisab('bought 150 laddu');
+assert.strictEqual(ladduTx?.title, 'Laddu');
+assert.strictEqual(ladduTx?.category, 'Food');
+
+const pantTx = parseNaturalLanguageHisab('i bought pant 1200');
+assert.strictEqual(pantTx?.title, 'Pants');
+assert.strictEqual(pantTx?.category, 'Shopping');
+
+const shoesTx = parseNaturalLanguageHisab('shoes 2500');
+assert.strictEqual(shoesTx?.title, 'Shoes');
+assert.strictEqual(shoesTx?.category, 'Shopping');
+
+const stocksTx = parseNaturalLanguageHisab('invest 5000 in stocks');
+assert.strictEqual(stocksTx?.title, 'Stocks');
+assert.strictEqual(stocksTx?.type, 'investment');
+
+const borrowTx = parseNaturalLanguageHisab('borrowed 500 from rahul');
+assert.strictEqual(borrowTx?.title, 'Rahul');
+assert.strictEqual(borrowTx?.type, 'income');
+console.log('✅ Test 14 Passed: Clean Title & Category Extraction (Food/Shopping/Transport/Invest/Borrow)');
+
+// Test 15: Store Auto-Categorization & Bulk Rephrase Method
+const autoFish = store.addTransaction({ title: 'i buy some fish', amount: 400, category: 'Others', type: 'expense' });
+assert.strictEqual(autoFish.title, 'Fish');
+assert.strictEqual(autoFish.category, 'Food');
+
+store.data.transactions.push({ id: 'raw-1', title: 'bought 200 laddu', amount: 200, category: 'Others', type: 'expense', paymentMethod: 'UPI', date: '2026-08-17' });
+const rephrasedCount = store.rephraseAllEntries();
+assert.ok(rephrasedCount >= 1, 'Rephrased verbose transactions');
+assert.ok(store.getTransactions().some(t => t.title === 'Fish' && t.category === 'Food'));
+assert.ok(store.getTransactions().some(t => t.title === 'Laddu' && t.category === 'Food'));
+console.log('✅ Test 15 Passed: Store Auto-Categorization & Bulk Rephrase Method');
+
+// Test 16: Delete Operations & Clean Up
 store.deleteTransaction(tx.id);
 assert.strictEqual(store.getTransactions().filter(t => t.id === tx.id).length, 0);
 
@@ -180,7 +218,8 @@ assert.strictEqual(store.getInvestments().filter(i => i.id === inv.id).length, 0
 
 store.deleteDebt(debt.id);
 assert.strictEqual(store.getDebts().filter(d => d.id === debt.id).length, 0);
-console.log('✅ Test 13 Passed: Delete Operations & Clean Up');
+console.log('✅ Test 16 Passed: Delete Operations & Clean Up');
 
-console.log('\n🎉 ALL 13 COMPREHENSIVE UNIT TESTS PASSED CLEANLY!\n');
+console.log('\n🎉 ALL 16 COMPREHENSIVE UNIT TESTS PASSED CLEANLY!\n');
 process.exit(0);
+

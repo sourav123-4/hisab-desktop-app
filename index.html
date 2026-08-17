@@ -37,6 +37,61 @@
       }
     })();
   </script>
+  <style>
+    html.app-is-locked body {
+      overflow: hidden !important;
+    }
+    html.app-is-locked .app-layout {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transition: opacity 0.3s ease;
+    }
+  </style>
+  <script>
+    (function() {
+      try {
+        // 1. Zero-Flicker Security Shield
+        var isLocked = false;
+        var secFlag = localStorage.getItem('daily_hisab_security_locked');
+        if (secFlag === 'true') {
+          isLocked = true;
+        } else {
+          var userKey = localStorage.getItem('daily_hisab_current_user_id') || 'guest';
+          var dataRaw = localStorage.getItem('daily_hisab_data_' + userKey);
+          if (dataRaw) {
+            var data = JSON.parse(dataRaw);
+            if (data && (data.securityPinEnabled || data.fingerprintEnabled) && (data.securityPinHash || data.fingerprintEnabled)) {
+              isLocked = true;
+              localStorage.setItem('daily_hisab_security_locked', 'true');
+            }
+          }
+        }
+        if (isLocked) {
+          document.documentElement.classList.add('app-is-locked');
+        }
+
+        // 2. Zero-Flicker Frame-0 Cached Profile
+        var cachedUser = localStorage.getItem('daily_hisab_last_known_user');
+        if (cachedUser) {
+          var u = JSON.parse(cachedUser);
+          if (u && u.email) {
+            var name = u.displayName || u.email.split('@')[0] || 'User Account';
+            var email = u.email;
+            var initial = name.charAt(0).toUpperCase();
+            document.addEventListener('DOMContentLoaded', function() {
+              var uEl = document.getElementById('sidebarUserName');
+              var sEl = document.getElementById('sidebarUserSub');
+              var aEl = document.getElementById('sidebarAvatar');
+              if (uEl) uEl.textContent = name;
+              if (sEl) sEl.textContent = email;
+              if (aEl) aEl.textContent = initial;
+            });
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <div id="app-root">
@@ -94,7 +149,7 @@
           ⚙️ Settings & Themes
         </button>
         <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 4px;">
-          Offline Desktop App v1.0 • Secure
+          Offline Desktop App v1.2.0 • Secure
         </div>
       </div>
     </aside>
@@ -334,13 +389,20 @@
   <div class="modal-overlay" id="salaryModal">
     <div class="modal-container">
       <div class="modal-header">
-        <h3>Log Monthly Salary Details</h3>
+        <h3 id="salaryModalTitle">Log Salary Details</h3>
         <button class="close-btn" data-close="salaryModal">&times;</button>
       </div>
       <form id="salaryForm">
-        <div class="form-group">
-          <label>Company / Employer Name</label>
-          <input type="text" id="salCompany" class="form-control" placeholder="e.g. Tech Corp" required>
+        <input type="hidden" id="salEditId" value="">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Month / Year *</label>
+            <input type="month" id="salMonthYear" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Employer / Company / Source *</label>
+            <input type="text" id="salCompany" class="form-control" placeholder="e.g. Tech Corp, Employer B" required>
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group">

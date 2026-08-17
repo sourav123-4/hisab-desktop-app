@@ -10,6 +10,19 @@ export function renderHisabView(container: HTMLElement, currentMonthYear: string
   const totalEmi = txs.filter(t => t.type === 'emi').reduce((acc, t) => acc + t.amount, 0);
 
   container.innerHTML = `
+    <div class="card" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%); border-color: rgba(99, 102, 241, 0.3); padding: 14px 18px; margin-bottom: 20px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="font-weight: 700; font-size: 13.5px; color: var(--accent-primary); display: flex; align-items: center; gap: 6px;">
+          ✨ AI Smart Quick Entry
+        </span>
+        <span style="font-size: 11px; color: var(--text-muted);">Auto-detects Amount, Category & Payment Method</span>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <input type="text" id="hisabAiInput" class="form-control ai-smart-input" placeholder="Type e.g. 'Paid 350 for groceries' or '80 fish' or 'pant 1200'..." style="flex: 1; font-weight: 500;" />
+        <button class="btn btn-primary btn-sm ai-smart-save-btn" id="hisabAiSaveBtn">✨ Save Entry</button>
+      </div>
+    </div>
+
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-header">

@@ -1,5 +1,90 @@
 import type { Transaction } from '../types/index.js';
 
+export function cleanHisabTitle(raw: string, category: string = 'Others', type: string = 'expense'): string {
+  if (!raw || typeof raw !== 'string') {
+    return `${category} ${type === 'expense' ? 'Expense' : 'Transaction'}`;
+  }
+
+  let cleaned = raw.trim();
+
+  // 1. Remove explicit currency amounts (e.g. ₹500, Rs. 1000, 200 rupees, $50)
+  cleaned = cleaned
+    .replace(/(?:rs\.?|₹|inr|rupaye|rupees|\$|€|£)\s*\d+(?:[\s,]\d+)*(?:\.\d{1,2})?/gi, '')
+    .replace(/\d+(?:[\s,]\d+)*(?:\.\d{1,2})?\s*(?:rupees|rupaye|rs|inr|usd|eur|gbp|dollars?|cents?)\b/gi, '');
+
+  // 2. Remove payment methods & timing words
+  cleaned = cleaned
+    .replace(/\b(upi|gpay|google pay|phonepe|paytm|cash|credit card|card|cc|netbanking|auto-debit|autodebit|today|yesterday|tomorrow|kal|aaj)\b/gi, '');
+
+  // 3. Remove action verbs, pronouns, and filler words
+  const stopWordsRegex = /\b(given|lent|borrowed|borrow|udhar|spent|spend|paid|pay|bought|buy|buyed|buying|purchase|purchased|purchasing|selling|sell|sold|invested|invest|investing|got|get|credited|received|receive|give|gave|take|took|taken|i|we|you|he|she|they|me|my|mine|our|us|some|any|kind|of|a|an|the|this|that|these|those|to|from|for|on|at|via|through|using|in|by|with|and|also|then|or|plus|pe|par|ka|ki|ke|ko|se|diya|diye|liya|liye|kharcha|khareeda|khareede|hazar|hazhar|thousand|thousands|lakh|lakhs|lac|lacs|k|money)\b/gi;
+  cleaned = cleaned.replace(stopWordsRegex, ' ').replace(/\s+/g, ' ').trim();
+
+  // 4. Remove standalone leading or trailing amount numbers (e.g. "150 laddu" or "laddu 150")
+  cleaned = cleaned
+    .replace(/(^\d+(?:\.\d{1,2})?\s+)|(\s+\d+(?:\.\d{1,2})?$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // 5. Remove unwanted punctuation and collapse whitespace
+  cleaned = cleaned.replace(/[\.,;:\-_\/\\()'"]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // 6. Canonical mapping for common items
+  if (cleaned) {
+    const lowerClean = cleaned.toLowerCase();
+    if (/^fish(es)?$/i.test(lowerClean) || /^(machli|machhli|maach)$/i.test(lowerClean)) return 'Fish';
+    if (/^eggs?$/i.test(lowerClean) || /^(anda|ande)$/i.test(lowerClean)) return 'Egg';
+    if (/^ladd?u+s?$/i.test(lowerClean) || /^ladd?oo?s?$/i.test(lowerClean)) return 'Laddu';
+    if (/^shoes?$/i.test(lowerClean) || /^(joota|joote)$/i.test(lowerClean)) return 'Shoes';
+    if (/^pants?$/i.test(lowerClean)) return 'Pants';
+    if (/^shirts?$/i.test(lowerClean)) return 'Shirt';
+    if (/^petrol$/i.test(lowerClean)) return 'Petrol';
+    if (/^diesel$/i.test(lowerClean)) return 'Diesel';
+    if (/^stocks?$/i.test(lowerClean)) return 'Stocks';
+    if (/^popcorn$/i.test(lowerClean)) return 'Popcorn';
+    if (/^posto$/i.test(lowerClean)) return 'Posto';
+    if (/^puris?|pooris?$/i.test(lowerClean)) return 'Puri';
+    if (/^alu\s*kata|aloo\s*kata$/i.test(lowerClean)) return 'Alu Kata';
+    if (/^hair\s*cutting|haircut$/i.test(lowerClean)) return 'Hair Cutting';
+    if (/^bir[iy]*ani$/i.test(lowerClean)) return 'Biryani';
+    if (/^kela|kele$/i.test(lowerClean)) return 'Kela';
+    if (/^pass\s*pass$/i.test(lowerClean)) return 'Pass Pass';
+
+    return cleaned
+      .split(' ')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  return `${category} ${type === 'expense' ? 'Expense' : 'Transaction'}`;
+}
+
+export function detectCategoryFromText(text: string): string {
+  if (!text || typeof text !== 'string') return 'Others';
+  const lower = text.toLowerCase();
+
+  if (/shopping|amazon|flipkart|clothes|clothing|shoes?|shoe|joota|joote|sneakers?|footwear|pants?|pant|shirt|shirts|jeans|t-shirt|tshirt|dress|myntra|zudio|trends|electronics|mall|khareeda/i.test(lower)) {
+    return 'Shopping';
+  }
+  if (/food|zomato|swiggy|blinkit|zepto|instamart|restaurant|dining|dinner|lunch|breakfast|tea|chai|coffee|starbucks|mcdonalds|kfc|dominos|pizza|burger|pasta|noodle|noodles|momos|roll|rolls|samosa|singara|dosa|idli|paratha|parotha|sweets?|mithai|jalebi|gulab\s*jamun|rasgulla|rosogolla|sandesh|pantua|payesh|kheer|halwa|cake|pastry|ice\s*cream|kulfi|dessert|ladd?u+s?|ladd?oo?s?|laddu|ladoo|juice|fruits?|apple|banana|kela|kele|mango|orange|fish(es)?|machli|machhli|maach|chingri|katla|rohu|hilsa|ilish|prawns?|crab|seafood|chicken|murgi|mutton|meat|beef|pork|kabab|kebab|tandoori|tikka|eggs?|anda|ande|omelette|omlet|milk|doodh|paneer|chana|rajma|chole|bhature|pav|bhaji|misal|vada|pao|cheese|butter|ghee|curd|dahi|lassi|yogurt|cream|bread|roti|puri|poori|luchi|kochuri|kachori|dal|daal|rice|chawal|bir[iy]*ani|pulao|polao|khichdi|khichuri|curry|gravy|soup|salad|khana|khaye|khaya|snack|snacks|biscuit|biscuits|cookie|cookies|chips|chanachur|namkeen|bhujia|muri|jhalmuri|chocolate|chocolates|pass\s*pass|passpass|paan|\bpan\b|mouth\s*freshener|candy|candies|toffee|mint|mints|mentos|center\s*fresh|centre\s*fresh|hotel|tiffin|mess|canteen|cafe|bakery|bhojan|groceries|grocery|kirana|supermarket|vegetables?|veg|sabz?i|sabji|tarkari|alu|aloo|potato|tomato|pyaz|onion|garlic|ginger|posto|popcorn|pakora|pakoda|chop|fuchka|puchka|golgappa|bhel|bhelpuri|ghugni/i.test(lower)) {
+    return 'Food';
+  }
+  if (/electricity|bijli|bill|water|wifi|broadband|recharge|jio|airtel|power|gas|utility|mobile|rent/i.test(lower)) {
+    return 'Bills';
+  }
+  if (/petrol|diesel|fuel|tel|uber|ola|rapido|cab|auto|bus|flight|train|metro|transport|fastag|bike|car|parking|toll|rickshaw|toto/i.test(lower)) {
+    return 'Transport';
+  }
+  if (/medicine|dawa|doctor|hospital|pharmacy|health|clinic|lab|pathology|hair\s*cut|haircut|hair\s*cutting|barber|salon|parlour|grooming|facial|spa|shave|trim/i.test(lower)) {
+    return 'Health';
+  }
+  if (/movie|cinema|netflix|prime|bookmyshow|game|concert|entertainment|gym/i.test(lower)) {
+    return 'Entertainment';
+  }
+
+  return 'Others';
+}
+
 export function parseNaturalLanguageHisab(text: string): Partial<Transaction> | null {
   if (!text || typeof text !== 'string') return null;
 
@@ -30,12 +115,16 @@ export function parseNaturalLanguageHisab(text: string): Partial<Transaction> | 
   }
 
   let type: 'expense' | 'income' | 'investment' | 'emi' = 'expense';
-  if (/received|got|credited|salary|freelance|bonus|income|earned|dividend|aaya|aayi|mila|mili|payout/i.test(lower)) {
+  if (/received|got|credited|salary|freelance|bonus|income|earned|dividend|aaya|aayi|mila|mili|payout|sold|sell/i.test(lower)) {
     type = 'income';
   } else if (/invested|sip|mutual fund|stocks|sgb|gold|equity|fd|lagaya|invest/i.test(lower)) {
     type = 'investment';
   } else if (/emi|loan|installment|auto-debit/i.test(lower)) {
     type = 'emi';
+  } else if (/borrowed|borrow/i.test(lower)) {
+    type = 'income';
+  } else if (/bought|buy|buyed|spent|spend|paid|pay|khareeda|khareede|lent|given/i.test(lower)) {
+    type = 'expense';
   }
 
   let paymentMethod = 'UPI';
@@ -48,40 +137,18 @@ export function parseNaturalLanguageHisab(text: string): Partial<Transaction> | 
   else if (/gpay|google pay/i.test(lower)) paymentMethod = 'GPay';
   else if (/upi/i.test(lower)) paymentMethod = 'UPI';
 
-  let category = 'Others';
-  if (/food|zomato|swiggy|blinkit|zepto|instamart|restaurant|dining|groceries|grocery|supermarket|vegetables?|sabz?i|dinner|lunch|breakfast|tea|chai|coffee|starbucks|mcdonalds|kfc|dominos|pizza|burger|pasta|noodle|momos|roll|samosa|dosa|idli|paratha|sweets?|mithai|ice\s*cream|juice|fruits?|apple|banana|mango|orange|fish|machli|maach|chicken|mutton|meat|beef|pork|eggs?|anda|milk|doodh|paneer|cheese|butter|curd|dahi|bread|roti|dal|rice|chawal|biryani|khana|khaye|khaya/i.test(lower)) {
-    category = 'Food';
-  } else if (/electricity|bijli|bill|water|wifi|broadband|recharge|jio|airtel|power|gas|utility|mobile|rent/i.test(lower)) {
-    category = 'Bills';
-  } else if (/petrol|diesel|fuel|tel|uber|ola|cab|auto|bus|flight|train|metro|transport|fastag/i.test(lower)) {
-    category = 'Transport';
-  } else if (/shopping|amazon|flipkart|clothes|shoes|myntra|electronics|mall|khareeda/i.test(lower)) {
-    category = 'Shopping';
-  } else if (/medicine|dawa|doctor|hospital|pharmacy|health|clinic|lab/i.test(lower)) {
-    category = 'Health';
-  } else if (/movie|cinema|netflix|prime|bookmyshow|game|concert|entertainment|gym/i.test(lower)) {
-    category = 'Entertainment';
-  } else if (type === 'emi') {
-    category = 'EMI';
-  } else if (type === 'investment') {
-    category = 'Investment';
-  } else if (type === 'income') {
-    category = 'Income';
+  let category = detectCategoryFromText(lower);
+  if (category === 'Others') {
+    if (type === 'emi') {
+      category = 'EMI';
+    } else if (type === 'investment') {
+      category = 'Investment';
+    } else if (type === 'income') {
+      category = 'Income';
+    }
   }
 
-  let title = raw;
-  title = title
-    .replace(/(?:rs\.?|₹|inr|rupaye|rupees)?\s*\d+(?:[\s,]\d+)*(?:\.\d{1,2})?/gi, '')
-    .replace(/\b(given|lent|borrowed|udhar|spent|paid|bought|got|received|to|from|for|on|at|via|through|using|in|by|rupees|rupaye|rs|upi|gpay|phonepe|paytm|cash|credit card|card|netbanking|auto-debit|today|yesterday|pe|ka|ki|diya|diye|liya|liye|kharcha|khareeda|hazar|hazhar|thousand|thousands|lakh|lakhs|lac|lacs|k)\b/gi, '')
-    .replace(/[$₹€£]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!title || title.length < 2) {
-    title = `${category} ${type === 'expense' ? 'Expense' : 'Transaction'}`;
-  } else {
-    title = title.charAt(0).toUpperCase() + title.slice(1);
-  }
+  const title = cleanHisabTitle(raw, category, type);
 
   let date = new Date().toISOString().split('T')[0];
   if (/yesterday|kal/i.test(lower)) {
@@ -127,3 +194,4 @@ export function parseMultipleHisabs(text: string): Array<Partial<Transaction>> {
 
   return results;
 }
+

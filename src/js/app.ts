@@ -72,7 +72,7 @@ function startApp() {
         updateAuthModalUI({ ...cachedUser, isAnonymous: false });
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   onAuthChange((user: any) => {
     updateAuthModalUI(user);
@@ -90,10 +90,18 @@ function startApp() {
       if (userNameEl) userNameEl.textContent = name;
       if (userSubEl) userSubEl.textContent = email;
       if (avatarEl) avatarEl.textContent = initial;
+
+      try {
+        localStorage.setItem('daily_hisab_last_known_user', JSON.stringify({ displayName: name, email: email }));
+      } catch (e) {}
     } else {
       if (userNameEl) userNameEl.textContent = 'Sign In / Account';
       if (userSubEl) userSubEl.textContent = 'Cloud Sync Account';
       if (avatarEl) avatarEl.textContent = '🔑';
+
+      try {
+        localStorage.removeItem('daily_hisab_last_known_user');
+      } catch (e) {}
     }
   });
 
@@ -208,18 +216,31 @@ function startApp() {
   const aiVoiceBtn = document.getElementById('aiVoiceBtn');
 
   const processAISmartSave = () => {
-    const input = (document.getElementById('aiSmartInput') as HTMLInputElement | null) || (document.getElementById('dashboardAiInput') as HTMLInputElement | null);
-    if (!input) return;
-    const text = input.value.trim();
+    const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('.ai-smart-input, #aiSmartInput, #dashboardAiInput, #salaryAiInput, #hisabAiInput'));
+    let text = '';
+
+    for (const inp of inputs) {
+      const val = inp.value.trim();
+      if (val) {
+        text = val;
+        break;
+      }
+    }
+
     if (!text) return;
 
     const items = parseMultipleHisabs(text);
     if (items.length > 0) {
       const summaryItems: string[] = [];
       items.forEach(item => {
-        const lower = text.toLowerCase();
-        if (/given|lent|borrowed|udhar|diya|diye|liya|liye/i.test(lower)) {
-          const isLent = /given|lent|diya|diye/i.test(lower);
+        const itemCategory = item.category || 'Others';
+        const itemText = `${item.title || ''} ${item.notes || ''}`.toLowerCase();
+        const isDebtPhrase = (itemCategory === 'Others') &&
+          (/udhar|given to|lent to|borrowed from|money given|money borrowed/i.test(itemText) ||
+            (/given|lent|borrowed|udhar|diya|diye|liya|liye/i.test(itemText) && !/food|fish|egg|laddu|pant|shoes|petrol/i.test(itemText)));
+
+        if (isDebtPhrase) {
+          const isLent = /given|lent|diya|diye/i.test(itemText);
           let name = item.title || 'Someone';
           name = name.replace(/^(Money Given to|Money Borrowed from|Given|Lent|Borrowed|Udhar)\s+/i, '').trim();
           if (!name || name.length < 2) name = 'Someone';
@@ -233,21 +254,19 @@ function startApp() {
           });
           summaryItems.push(`🤝 ${isLent ? 'Given to' : 'Borrowed from'} ${name} (₹${(item.amount || 0).toLocaleString('en-IN')})`);
         } else {
-          store.addTransaction(item);
-          summaryItems.push(`📌 ${item.title || 'Entry'} (₹${(item.amount || 0).toLocaleString('en-IN')}) • ${item.category || 'General'}`);
+          const addedTx = store.addTransaction(item);
+          summaryItems.push(`📌 ${addedTx.title || 'Entry'} (₹${(addedTx.amount || 0).toLocaleString('en-IN')}) • ${addedTx.category || 'General'}`);
         }
       });
 
       showToast(`✨ Entry Done: ${summaryItems.join(' | ')}`);
-      input.value = '';
-      input.blur();
-      if (aiInput) {
-        aiInput.value = '';
-        aiInput.blur();
-      }
+      inputs.forEach(inp => {
+        inp.value = '';
+        inp.blur();
+      });
       renderCurrentTab();
     } else {
-      showToast(`⚠️ Please include an amount (e.g. 'fish 400' or 'given 5000 to tapas mamu')`, 'warning');
+      showToast(`⚠️ Please include an amount (e.g. 'fish 400' or 'Salary 45000 credited')`, 'warning');
     }
   };
 
@@ -311,13 +330,13 @@ function startApp() {
         openModal('salaryModal');
       } else if (e.target.id === 'addDebtBtn') {
         openModal('debtModal');
-      } else if (e.target.id === 'dashboardAiSaveBtn') {
+      } else if (e.target.id === 'dashboardAiSaveBtn' || e.target.id === 'salaryAiSaveBtn' || e.target.id === 'hisabAiSaveBtn' || e.target.classList?.contains('ai-smart-save-btn')) {
         processAISmartSave();
       }
     });
 
     container.addEventListener('keydown', (e: any) => {
-      if (e.target.id === 'dashboardAiInput' && e.key === 'Enter') {
+      if ((e.target.id === 'dashboardAiInput' || e.target.id === 'salaryAiInput' || e.target.id === 'hisabAiInput' || e.target.classList?.contains('ai-smart-input')) && e.key === 'Enter') {
         processAISmartSave();
       }
     });
@@ -372,7 +391,7 @@ async function startAudioRecording() {
         micStream = null;
       }
       if (audioContext) {
-        try { audioContext.close(); } catch (e) {}
+        try { audioContext.close(); } catch (e) { }
         audioContext = null;
       }
 
@@ -580,9 +599,14 @@ function handleVoiceSubmit() {
   if (items.length > 0) {
     const summaryItems: string[] = [];
     items.forEach(item => {
-      const lower = text.toLowerCase();
-      if (/given|lent|borrowed|udhar|diya|diye|liya|liye/i.test(lower)) {
-        const isLent = /given|lent|diya|diye/i.test(lower);
+      const itemCategory = item.category || 'Others';
+      const itemText = `${item.title || ''} ${item.notes || ''}`.toLowerCase();
+      const isDebtPhrase = (itemCategory === 'Others') &&
+        (/udhar|given to|lent to|borrowed from|money given|money borrowed/i.test(itemText) ||
+          (/given|lent|borrowed|udhar|diya|diye|liya|liye/i.test(itemText) && !/food|fish|egg|laddu|pant|shoes|petrol/i.test(itemText)));
+
+      if (isDebtPhrase) {
+        const isLent = /given|lent|diya|diye/i.test(itemText);
         let name = item.title || 'Someone';
         name = name.replace(/^(Money Given to|Money Borrowed from|Given|Lent|Borrowed|Udhar)\s+/i, '').trim();
         if (!name || name.length < 2) name = 'Someone';
@@ -596,8 +620,8 @@ function handleVoiceSubmit() {
         });
         summaryItems.push(`🤝 ${isLent ? 'Given to' : 'Borrowed from'} ${name} (₹${(item.amount || 0).toLocaleString('en-IN')})`);
       } else {
-        store.addTransaction(item);
-        summaryItems.push(`📌 ${item.title || 'Entry'} (₹${(item.amount || 0).toLocaleString('en-IN')}) • ${item.category || 'General'}`);
+        const addedTx = store.addTransaction(item);
+        summaryItems.push(`📌 ${addedTx.title || 'Entry'} (₹${(addedTx.amount || 0).toLocaleString('en-IN')}) • ${addedTx.category || 'General'}`);
       }
     });
 
@@ -834,13 +858,17 @@ function setupForms() {
 
   document.getElementById('salaryForm')?.addEventListener('submit', (e: any) => {
     e.preventDefault();
+    const form = e.target;
+    const editingId = form.dataset.editingId || (document.getElementById('salEditId') as HTMLInputElement)?.value;
+    const monthYear = (document.getElementById('salMonthYear') as HTMLInputElement).value || currentMonthYear;
     const grossVal = parseFloat((document.getElementById('salGross') as HTMLInputElement).value) || 0;
     const dedVal = parseFloat((document.getElementById('salDeductions') as HTMLInputElement).value) || 0;
     const netInputVal = (document.getElementById('salNet') as HTMLInputElement).value;
     const netVal = netInputVal ? parseFloat(netInputVal) : (grossVal - dedVal);
 
     store.addOrUpdateSalary({
-      monthYear: currentMonthYear,
+      id: editingId || undefined,
+      monthYear: monthYear,
       company: (document.getElementById('salCompany') as HTMLInputElement).value,
       grossAmount: grossVal,
       deductions: dedVal,
@@ -848,9 +876,11 @@ function setupForms() {
       receivedDate: (document.getElementById('salDate') as HTMLInputElement).value,
       status: 'credited'
     });
-    showToast(`💰 Salary Recorded: ₹${netVal.toLocaleString('en-IN')} for ${currentMonthYear}`);
+    delete form.dataset.editingId;
+    const editIdInput = document.getElementById('salEditId') as HTMLInputElement | null;
+    if (editIdInput) editIdInput.value = '';
     closeModal('salaryModal');
-    e.target.reset();
+    form.reset();
     renderCurrentTab();
   });
 
