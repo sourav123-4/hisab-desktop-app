@@ -517,7 +517,7 @@ function createWindow() {
     };
   });
 
-  if (process.env.DEBUG === '1' || process.argv.includes('--debug') || process.env.NODE_ENV === 'development') {
+  if (process.env.DEBUG === '1' || process.argv.includes('--open-devtools') || process.argv.includes('-d') || process.env.NODE_ENV === 'development') {
     mainWindow.webContents.openDevTools();
   }
 
