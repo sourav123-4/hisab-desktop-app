@@ -517,6 +517,10 @@ function createWindow() {
     };
   });
 
+  if (process.env.DEBUG === '1' || process.argv.includes('--debug') || process.env.NODE_ENV === 'development') {
+    mainWindow.webContents.openDevTools();
+  }
+
   // Check if running in development mode or loaded via local server
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);

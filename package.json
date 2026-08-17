@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "electron .",
+    "debug": "electron . --debug",
     "test": "tsx src/js/store.test.ts",
     "rephrase-entries": "tsx scripts/rephrase_entries.ts",
     "dist": "npm run build && electron-builder",
