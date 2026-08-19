@@ -24,6 +24,21 @@ function triggerToast(message: string, type: string = 'success'): void {
   }
 }
 
+function parsePositiveNumber(value: any, fallback: number = 0): number {
+  const parsed = parseFloat(String(value ?? ''));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseNonNegativeNumber(value: any, fallback: number = 0): number {
+  const parsed = parseFloat(String(value ?? ''));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
 const sampleData: StoreData = {
   currency: '₹',
   theme: 'dark',
@@ -45,6 +60,9 @@ const sampleData: StoreData = {
     'Health': 0
   }
 };
+
+const SECURITY_CACHE_KEY = 'daily_hisab_security_settings';
+const SECURITY_LOCKED_KEY = 'daily_hisab_security_locked';
 
 class Store {
   public currentUserId: string;
@@ -333,6 +351,48 @@ class Store {
     };
   }
 
+  getStoredSecurityFallback(): Partial<StoreData> | null {
+    try {
+      const storage = this.getStorage();
+      if (!storage) return null;
+
+      const cachedRaw = storage.getItem(SECURITY_CACHE_KEY);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        const hasSecurity = Boolean((cached.securityPinEnabled && cached.securityPinHash) || cached.fingerprintEnabled);
+        if (hasSecurity) {
+          return {
+            securityPinEnabled: Boolean(cached.securityPinEnabled),
+            securityPinHash: cached.securityPinHash || '',
+            fingerprintEnabled: Boolean(cached.fingerprintEnabled)
+          };
+        }
+      }
+
+      for (let i = 0; i < storage.length; i++) {
+        const k = storage.key(i);
+        if (!k || !k.startsWith('daily_hisab_app_data')) continue;
+
+        try {
+          const raw = storage.getItem(k);
+          if (!raw) continue;
+
+          const parsed = JSON.parse(raw);
+          const hasSecurity = Boolean((parsed.securityPinEnabled && parsed.securityPinHash) || parsed.fingerprintEnabled);
+          if (hasSecurity) {
+            return {
+              securityPinEnabled: Boolean(parsed.securityPinEnabled),
+              securityPinHash: parsed.securityPinHash || '',
+              fingerprintEnabled: Boolean(parsed.fingerprintEnabled)
+            };
+          }
+        } catch (err) {}
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
   load(): StoreData {
     try {
       const key = this.getStorageKey();
@@ -343,6 +403,16 @@ class Store {
         data = this.sanitizeData(JSON.parse(JSON.stringify(sampleData)));
       } else {
         data = this.sanitizeData(JSON.parse(raw));
+      }
+
+      const hasLoadedSecurity = Boolean((data.securityPinEnabled && data.securityPinHash) || data.fingerprintEnabled);
+      if (!hasLoadedSecurity) {
+        const fallbackSecurity = this.getStoredSecurityFallback();
+        if (fallbackSecurity) {
+          data.securityPinEnabled = Boolean(fallbackSecurity.securityPinEnabled);
+          data.securityPinHash = fallbackSecurity.securityPinHash || '';
+          data.fingerprintEnabled = Boolean(fallbackSecurity.fingerprintEnabled);
+        }
       }
 
       // Auto-Recovery: If current storage key has 0 transactions, check for existing data in other local storage keys and recover it!
@@ -425,9 +495,15 @@ class Store {
 
         const isSecLocked = Boolean((sanitized.securityPinEnabled && sanitized.securityPinHash) || sanitized.fingerprintEnabled);
         if (isSecLocked) {
-          storage.setItem('daily_hisab_security_locked', 'true');
+          storage.setItem(SECURITY_LOCKED_KEY, 'true');
+          storage.setItem(SECURITY_CACHE_KEY, JSON.stringify({
+            securityPinEnabled: Boolean(sanitized.securityPinEnabled),
+            securityPinHash: sanitized.securityPinHash || '',
+            fingerprintEnabled: Boolean(sanitized.fingerprintEnabled)
+          }));
         } else {
-          storage.removeItem('daily_hisab_security_locked');
+          storage.removeItem(SECURITY_LOCKED_KEY);
+          storage.removeItem(SECURITY_CACHE_KEY);
         }
       }
       this.data = sanitized;
@@ -454,6 +530,7 @@ class Store {
   getSecuritySettings(): SecuritySettings {
     return {
       enabled: Boolean(this.data.securityPinEnabled || this.data.fingerprintEnabled),
+      pinEnabled: Boolean(this.data.securityPinEnabled),
       hasPin: Boolean(this.data.securityPinHash),
       fingerprintEnabled: Boolean(this.data.fingerprintEnabled),
       notificationsEnabled: Boolean(this.data.notificationsEnabled)
@@ -559,7 +636,7 @@ class Store {
       id: tx.id || ('tx-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
       date: tx.date || new Date().toISOString().split('T')[0],
       title: title,
-      amount: parseFloat(String(tx.amount)) || 0,
+      amount: parsePositiveNumber(tx.amount),
       category: category,
       type: tx.type || 'expense',
       paymentMethod: tx.paymentMethod || 'UPI',
@@ -662,15 +739,17 @@ class Store {
   }
 
   addLoan(loan: Partial<Loan>): Loan {
+    const totalPrincipal = parsePositiveNumber(loan.totalPrincipal);
+    const remainingAmount = parseNonNegativeNumber(loan.remainingAmount, totalPrincipal);
     const newLoan: Loan = {
       id: loan.id || ('loan-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
       name: loan.name || 'Loan',
       lender: loan.lender || '',
-      totalPrincipal: parseFloat(String(loan.totalPrincipal)) || 0,
-      remainingAmount: parseFloat(String(loan.remainingAmount)) || parseFloat(String(loan.totalPrincipal)) || 0,
-      monthlyEmi: parseFloat(String(loan.monthlyEmi)) || 0,
-      interestRate: parseFloat(String(loan.interestRate)) || 0,
-      emiDay: parseInt(String(loan.emiDay)) || 5,
+      totalPrincipal,
+      remainingAmount,
+      monthlyEmi: parsePositiveNumber(loan.monthlyEmi),
+      interestRate: parseNonNegativeNumber(loan.interestRate),
+      emiDay: clampNumber(parseInt(String(loan.emiDay), 10) || 5, 1, 31),
       status: 'Active'
     };
     this.data.loans.push(newLoan);
@@ -694,11 +773,11 @@ class Store {
 
     loan.name = updatedLoan.name !== undefined ? updatedLoan.name : loan.name;
     loan.lender = updatedLoan.lender !== undefined ? updatedLoan.lender : loan.lender;
-    loan.totalPrincipal = updatedLoan.totalPrincipal !== undefined ? (parseFloat(String(updatedLoan.totalPrincipal)) || 0) : loan.totalPrincipal;
-    loan.remainingAmount = updatedLoan.remainingAmount !== undefined ? (parseFloat(String(updatedLoan.remainingAmount)) || 0) : loan.remainingAmount;
-    loan.monthlyEmi = updatedLoan.monthlyEmi !== undefined ? (parseFloat(String(updatedLoan.monthlyEmi)) || 0) : loan.monthlyEmi;
-    loan.interestRate = updatedLoan.interestRate !== undefined ? (parseFloat(String(updatedLoan.interestRate)) || 0) : loan.interestRate;
-    loan.emiDay = updatedLoan.emiDay !== undefined ? (parseInt(String(updatedLoan.emiDay)) || 5) : loan.emiDay;
+    loan.totalPrincipal = updatedLoan.totalPrincipal !== undefined ? parsePositiveNumber(updatedLoan.totalPrincipal) : loan.totalPrincipal;
+    loan.remainingAmount = updatedLoan.remainingAmount !== undefined ? parseNonNegativeNumber(updatedLoan.remainingAmount) : loan.remainingAmount;
+    loan.monthlyEmi = updatedLoan.monthlyEmi !== undefined ? parsePositiveNumber(updatedLoan.monthlyEmi) : loan.monthlyEmi;
+    loan.interestRate = updatedLoan.interestRate !== undefined ? parseNonNegativeNumber(updatedLoan.interestRate) : loan.interestRate;
+    loan.emiDay = updatedLoan.emiDay !== undefined ? clampNumber(parseInt(String(updatedLoan.emiDay), 10) || 5, 1, 31) : loan.emiDay;
 
     saveToCloud('loans', loan.id, loan);
     this.save();
@@ -737,14 +816,15 @@ class Store {
   }
 
   addInvestment(inv: Partial<Investment>): Investment {
+    const totalInvested = parseNonNegativeNumber(inv.totalInvested);
     const newInv: Investment = {
       id: inv.id || ('inv-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
       name: inv.name || 'Investment',
       category: inv.category || 'Mutual Funds',
       type: inv.type || 'SIP',
-      monthlySip: parseFloat(String(inv.monthlySip)) || 0,
-      totalInvested: parseFloat(String(inv.totalInvested)) || 0,
-      currentValue: parseFloat(String(inv.currentValue)) || parseFloat(String(inv.totalInvested)) || 0,
+      monthlySip: parseNonNegativeNumber(inv.monthlySip),
+      totalInvested,
+      currentValue: parseNonNegativeNumber(inv.currentValue, totalInvested),
       platform: inv.platform || '',
       startDate: inv.startDate || new Date().toISOString().split('T')[0]
     };
@@ -763,9 +843,9 @@ class Store {
     inv.name = updatedInv.name !== undefined ? updatedInv.name : inv.name;
     inv.category = updatedInv.category !== undefined ? updatedInv.category : inv.category;
     inv.type = updatedInv.type !== undefined ? updatedInv.type : inv.type;
-    inv.monthlySip = updatedInv.monthlySip !== undefined ? (parseFloat(String(updatedInv.monthlySip)) || 0) : inv.monthlySip;
-    inv.totalInvested = updatedInv.totalInvested !== undefined ? (parseFloat(String(updatedInv.totalInvested)) || 0) : inv.totalInvested;
-    inv.currentValue = updatedInv.currentValue !== undefined ? (parseFloat(String(updatedInv.currentValue)) || 0) : inv.currentValue;
+    inv.monthlySip = updatedInv.monthlySip !== undefined ? parseNonNegativeNumber(updatedInv.monthlySip) : inv.monthlySip;
+    inv.totalInvested = updatedInv.totalInvested !== undefined ? parseNonNegativeNumber(updatedInv.totalInvested) : inv.totalInvested;
+    inv.currentValue = updatedInv.currentValue !== undefined ? parseNonNegativeNumber(updatedInv.currentValue) : inv.currentValue;
     inv.platform = updatedInv.platform !== undefined ? updatedInv.platform : inv.platform;
 
     saveToCloud('investments', inv.id, inv);
@@ -824,9 +904,11 @@ class Store {
       id,
       monthYear,
       company: record.company || 'Employer',
-      grossAmount: parseFloat(String(record.grossAmount)) || 0,
-      deductions: parseFloat(String(record.deductions)) || 0,
-      netAmount: parseFloat(String(record.netAmount)) || (parseFloat(String(record.grossAmount || 0)) - parseFloat(String(record.deductions || 0))),
+      grossAmount: parsePositiveNumber(record.grossAmount),
+      deductions: parseNonNegativeNumber(record.deductions),
+      netAmount: record.netAmount !== undefined
+        ? parseNonNegativeNumber(record.netAmount)
+        : Math.max(0, parsePositiveNumber(record.grossAmount) - parseNonNegativeNumber(record.deductions)),
       receivedDate: record.receivedDate || new Date().toISOString().split('T')[0],
       status: record.status || 'credited',
       notes: record.notes || ''
@@ -857,8 +939,8 @@ class Store {
 
   addDebt(debt: Partial<DebtRecord>): DebtRecord {
     if (!Array.isArray(this.data.debts)) this.data.debts = [];
-    const amountVal = parseFloat(String(debt.amount)) || 0;
-    const settledVal = parseFloat(String(debt.settledAmount)) || 0;
+    const amountVal = parsePositiveNumber(debt.amount);
+    const settledVal = Math.min(amountVal, parseNonNegativeNumber(debt.settledAmount));
     const newDebt: DebtRecord = {
       id: debt.id || ('debt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
       personName: debt.personName || 'Someone',
@@ -900,8 +982,8 @@ class Store {
 
     debt.personName = updatedDebt.personName !== undefined ? updatedDebt.personName : debt.personName;
     debt.type = updatedDebt.type !== undefined ? updatedDebt.type : debt.type;
-    debt.amount = updatedDebt.amount !== undefined ? (parseFloat(String(updatedDebt.amount)) || 0) : debt.amount;
-    debt.settledAmount = updatedDebt.settledAmount !== undefined ? (parseFloat(String(updatedDebt.settledAmount)) || 0) : debt.settledAmount;
+    debt.amount = updatedDebt.amount !== undefined ? parsePositiveNumber(updatedDebt.amount) : debt.amount;
+    debt.settledAmount = updatedDebt.settledAmount !== undefined ? Math.min(debt.amount, parseNonNegativeNumber(updatedDebt.settledAmount)) : Math.min(debt.amount, debt.settledAmount);
     debt.date = updatedDebt.date !== undefined ? updatedDebt.date : debt.date;
     debt.dueDate = updatedDebt.dueDate !== undefined ? updatedDebt.dueDate : debt.dueDate;
     debt.notes = updatedDebt.notes !== undefined ? updatedDebt.notes : debt.notes;

@@ -8,12 +8,25 @@
   -webkit-font-smoothing: antialiased;
 }
 
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  height: 100vh;
+  min-height: 100%;
+  height: 100dvh;
   overflow: hidden;
   user-select: none;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
 }
 
 h1,
@@ -27,8 +40,10 @@ h4,
 
 #app-root {
   display: flex;
-  height: 100vh;
+  height: 100dvh;
   width: 100vw;
+  min-width: 0;
+  overflow: hidden;
   background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.06) 0%, transparent 40%);
 }
@@ -56,6 +71,9 @@ h4,
 .sidebar {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
+  max-width: var(--sidebar-width);
+  height: 100dvh;
+  min-height: 0;
   background-color: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
   display: flex;
@@ -118,6 +136,7 @@ h4,
   gap: 6px;
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .nav-item {
@@ -167,6 +186,7 @@ h4,
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 /* Main Workspace Container */
@@ -175,7 +195,8 @@ h4,
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -192,6 +213,7 @@ h4,
   padding: 10px 24px;
   gap: 12px;
   flex-wrap: wrap;
+  flex-shrink: 0;
   z-index: 10;
   -webkit-app-region: drag;
 }
@@ -205,6 +227,7 @@ h4,
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .page-title h2 {
@@ -212,6 +235,8 @@ h4,
   font-weight: 700;
   letter-spacing: -0.3px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .top-actions {
@@ -420,6 +445,9 @@ h4,
   outline: none;
   white-space: nowrap;
   flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  text-align: center;
 }
 
 /* Light Theme Styling Overrides */
@@ -1216,4 +1244,524 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   height: 48px;
   margin-bottom: 12px;
   opacity: 0.4;
+}
+
+/* True end-of-file responsive guardrails. Keep this block last. */
+.content-area,
+.card,
+.metric-card,
+.table-responsive,
+.modal-container,
+.custom-table td,
+.custom-table th,
+.card-header,
+.metric-header,
+.modal-header,
+.modal-actions {
+  min-width: 0;
+}
+
+.card-header {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.card-title,
+.metric-title,
+.metric-sub,
+.metric-value,
+.custom-table td,
+.custom-table th,
+.badge,
+.btn {
+  overflow-wrap: anywhere;
+}
+
+.custom-table {
+  min-width: 720px;
+}
+
+.custom-table th,
+.custom-table td {
+  vertical-align: middle;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.custom-table th {
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.custom-table td {
+  line-height: 1.35;
+}
+
+.custom-table td:first-child,
+.custom-table td:nth-last-child(2),
+.custom-table td:last-child {
+  white-space: nowrap;
+}
+
+.custom-table td:nth-child(2) {
+  min-width: 220px;
+  max-width: 520px;
+}
+
+.custom-table td:nth-child(2) strong,
+.custom-table td:nth-child(2) div {
+  overflow-wrap: anywhere;
+}
+
+.custom-table td:last-child > div {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.custom-table .btn,
+.custom-table .badge {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.custom-table .btn {
+  min-height: 34px;
+}
+
+.custom-table .badge {
+  line-height: 1.15;
+}
+
+.ledger-table {
+  min-width: 1040px;
+}
+
+.ledger-table th:nth-child(1),
+.ledger-table td:nth-child(1) {
+  width: 120px;
+}
+
+.ledger-table th:nth-child(2),
+.ledger-table td:nth-child(2) {
+  width: auto;
+  min-width: 260px;
+  max-width: none;
+}
+
+.ledger-table th:nth-child(3),
+.ledger-table td:nth-child(3),
+.ledger-table th:nth-child(4),
+.ledger-table td:nth-child(4),
+.ledger-table th:nth-child(5),
+.ledger-table td:nth-child(5) {
+  width: 140px;
+}
+
+.ledger-table th:nth-child(6),
+.ledger-table td:nth-child(6) {
+  width: 120px;
+}
+
+.ledger-table th:nth-child(7),
+.ledger-table td:nth-child(7) {
+  width: 190px;
+}
+
+.salary-income-table {
+  min-width: 900px;
+}
+
+.salary-history-table {
+  min-width: 1040px;
+}
+
+.salary-history-table th:nth-child(1),
+.salary-history-table td:nth-child(1) {
+  width: 125px;
+  white-space: nowrap;
+}
+
+.salary-history-table th:nth-child(2),
+.salary-history-table td:nth-child(2) {
+  width: auto;
+  min-width: 260px;
+  max-width: none;
+  white-space: normal;
+}
+
+.salary-history-table th:nth-child(3),
+.salary-history-table td:nth-child(3),
+.salary-history-table th:nth-child(4),
+.salary-history-table td:nth-child(4),
+.salary-history-table th:nth-child(5),
+.salary-history-table td:nth-child(5),
+.salary-history-table th:nth-child(6),
+.salary-history-table td:nth-child(6),
+.salary-history-table th:nth-child(7),
+.salary-history-table td:nth-child(7) {
+  width: 130px;
+  white-space: nowrap;
+}
+
+.salary-history-table th:nth-child(8),
+.salary-history-table td:nth-child(8) {
+  width: 180px;
+  white-space: nowrap;
+}
+
+.modal-overlay {
+  padding: 16px;
+  overflow: auto;
+}
+
+.modal-container {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.form-control {
+  width: 100%;
+}
+
+.modal-actions {
+  flex-wrap: wrap;
+}
+
+.toast-notification {
+  max-width: min(420px, calc(100vw - 24px));
+  right: 12px;
+  bottom: 12px;
+}
+
+.ai-smart-input {
+  min-width: 0 !important;
+}
+
+#dashboardAiInput,
+#hisabAiInput,
+#salaryAiInput,
+#dashboardAiSaveBtn,
+#hisabAiSaveBtn,
+#salaryAiSaveBtn,
+#hisabSearchInput,
+#hisabCategoryFilter,
+#hisabTypeFilter,
+#manualCloudSyncBtn,
+#exportBackupBtn,
+#resetSampleDataBtn {
+  min-width: 0;
+}
+
+#hisabCategoryFilter,
+#hisabTypeFilter {
+  flex: 1 1 150px;
+}
+
+.card > div:has(> #dashboardAiInput),
+.card > div:has(> #hisabAiInput),
+.card > div:has(> #salaryAiInput),
+.metric-card div:has(> .budget-input),
+.card > div:has(> #exportBackupBtn),
+.card > div:has(> #manualCloudSyncBtn) {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  html,
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow: auto;
+  }
+
+  #app-root {
+    flex-direction: column;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    padding: 12px 14px 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+  }
+
+  .brand {
+    padding: 2px 4px 10px;
+    margin-bottom: 8px;
+  }
+
+  .nav-menu {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 6px;
+    width: 100%;
+  }
+
+  .nav-item {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    font-size: 12.5px;
+  }
+
+  .sidebar-footer {
+    display: none;
+  }
+
+  .main-wrapper {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .top-bar {
+    padding: 10px 14px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-title,
+  .top-actions,
+  .ai-smart-bar,
+  .month-picker,
+  #topQuickAddBtn {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .top-actions {
+    justify-content: stretch;
+  }
+
+  .ai-smart-bar {
+    flex: 1 1 100%;
+    order: 10;
+  }
+
+  .month-picker {
+    justify-content: space-between;
+  }
+
+  .month-picker input[type="month"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .content-area {
+    padding: 16px;
+    gap: 16px;
+    overflow: visible;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+    gap: 14px;
+  }
+
+  .charts-grid,
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    padding: 18px;
+    gap: 14px;
+  }
+
+  .modal-container {
+    width: min(100%, 560px);
+    padding: 20px;
+    border-radius: var(--radius-lg);
+  }
+
+  #dashboardAiInput,
+  #hisabAiInput,
+  #salaryAiInput {
+    flex: 1 1 240px !important;
+  }
+
+  #hisabSearchInput,
+  #hisabCategoryFilter,
+  #hisabTypeFilter {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .top-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ai-smart-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .ai-smart-bar #aiSaveBtn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  #dashboardAiInput,
+  #hisabAiInput,
+  #salaryAiInput,
+  #dashboardAiSaveBtn,
+  #hisabAiSaveBtn,
+  #salaryAiSaveBtn,
+  #manualCloudSyncBtn,
+  #exportBackupBtn,
+  #resetSampleDataBtn {
+    flex-basis: 100% !important;
+    width: 100% !important;
+  }
+
+  #resetSampleDataBtn {
+    margin-left: 0 !important;
+  }
+
+  .card > div:has(> #dashboardAiInput),
+  .card > div:has(> #hisabAiInput),
+  .card > div:has(> #salaryAiInput),
+  .metric-card div:has(> .budget-input) {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .content-area {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .metric-card,
+  .card {
+    padding: 14px;
+    border-radius: var(--radius-md);
+  }
+
+  .metric-value {
+    font-size: 21px;
+  }
+
+  .card-header,
+  .modal-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .card-header .btn,
+  .modal-actions .btn {
+    width: 100%;
+  }
+
+  .custom-table {
+    min-width: 760px;
+    font-size: 12.5px;
+  }
+
+  .custom-table th,
+  .custom-table td {
+    padding: 10px 12px;
+  }
+
+  .modal-overlay {
+    padding: 10px;
+    align-items: flex-start;
+  }
+
+  .modal-container {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+    padding: 16px;
+    margin: auto 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .brand {
+    gap: 8px;
+  }
+
+  .brand img {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .brand-text h1 {
+    font-size: 14px;
+  }
+
+  .brand-text p,
+  .cloud-sync-badge,
+  #cloudSyncBadge {
+    font-size: 10.5px !important;
+  }
+
+  .btn {
+    padding-left: 10px;
+    padding-right: 10px;
+    white-space: normal;
+  }
+
+  .nav-item {
+    gap: 8px;
+    padding: 7px 10px;
+  }
+
+  .modal-container {
+    padding: 14px;
+  }
+}
+
+@media (max-height: 640px) and (min-width: 901px) {
+  .sidebar {
+    padding-top: 18px;
+  }
+
+  .brand {
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+  }
+
+  .nav-menu {
+    gap: 4px;
+  }
+
+  .nav-item {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .sidebar-footer {
+    gap: 6px;
+    padding-top: 8px;
+  }
+
+  .top-bar {
+    min-height: 48px;
+  }
+
+  .content-area {
+    padding: 12px 14px;
+    gap: 10px;
+  }
 }

@@ -30,6 +30,31 @@ function getCurrentMonthYear(): string {
   return `${year}-${month}`;
 }
 
+const TAB_TITLES: Record<string, string> = {
+  dashboard: 'Dashboard',
+  hisab: 'Daily Hisab',
+  loans: 'Loans & EMIs',
+  investments: 'Investments & SIP',
+  salary: 'Salary & Income',
+  debts: 'Udhar & Debts',
+  budgets: 'Budgets & Backup'
+};
+
+function parsePositiveNumber(value: string | undefined | null): number {
+  const parsed = parseFloat(String(value || ''));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function parseNonNegativeNumber(value: string | undefined | null): number {
+  const parsed = parseFloat(String(value || ''));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
 function startApp() {
   initLockScreen();
   (window as any).showToast = showToast;
@@ -92,7 +117,7 @@ function startApp() {
       if (avatarEl) avatarEl.textContent = initial;
 
       try {
-        localStorage.setItem('daily_hisab_last_known_user', JSON.stringify({ displayName: name, email: email }));
+        localStorage.setItem('daily_hisab_last_known_user', JSON.stringify({ uid: user.uid, displayName: name, email: email }));
       } catch (e) { }
     } else {
       if (userNameEl) userNameEl.textContent = 'Sign In / Account';
@@ -672,6 +697,9 @@ function renderCurrentTab() {
   if (!container) return;
   container.innerHTML = '';
 
+  const titleEl = document.getElementById('currentTabTitle');
+  if (titleEl) titleEl.textContent = TAB_TITLES[activeTab] || TAB_TITLES.dashboard;
+
   switch (activeTab) {
     case 'hisab':
       renderHisabView(container, currentMonthYear);
@@ -771,7 +799,7 @@ function setupForms() {
 
     const txData = {
       title: (document.getElementById('txTitle') as HTMLInputElement).value,
-      amount: parseFloat((document.getElementById('txAmount') as HTMLInputElement).value) || 0,
+      amount: parsePositiveNumber((document.getElementById('txAmount') as HTMLInputElement).value),
       category: (document.getElementById('txCategory') as HTMLSelectElement).value,
       type: (document.getElementById('txType') as HTMLSelectElement).value as any,
       paymentMethod: (document.getElementById('txPaymentMethod') as HTMLSelectElement).value,
@@ -803,10 +831,10 @@ function setupForms() {
     const loanData = {
       name: (document.getElementById('loanName') as HTMLInputElement).value,
       lender: (document.getElementById('loanLender') as HTMLInputElement).value,
-      totalPrincipal: parseFloat((document.getElementById('loanTotalAmount') as HTMLInputElement)?.value || (document.getElementById('loanPrincipal') as HTMLInputElement)?.value) || 0,
-      remainingAmount: parseFloat((document.getElementById('loanRemainingAmount') as HTMLInputElement)?.value || (document.getElementById('loanRemaining') as HTMLInputElement)?.value) || 0,
-      monthlyEmi: parseFloat((document.getElementById('loanMonthlyEmi') as HTMLInputElement)?.value || (document.getElementById('loanEmi') as HTMLInputElement)?.value) || 0,
-      emiDay: parseInt((document.getElementById('loanDueDay') as HTMLInputElement).value) || 5
+      totalPrincipal: parsePositiveNumber((document.getElementById('loanTotalAmount') as HTMLInputElement)?.value || (document.getElementById('loanPrincipal') as HTMLInputElement)?.value),
+      remainingAmount: parseNonNegativeNumber((document.getElementById('loanRemainingAmount') as HTMLInputElement)?.value || (document.getElementById('loanRemaining') as HTMLInputElement)?.value),
+      monthlyEmi: parsePositiveNumber((document.getElementById('loanMonthlyEmi') as HTMLInputElement)?.value || (document.getElementById('loanEmi') as HTMLInputElement)?.value),
+      emiDay: clampNumber(parseInt((document.getElementById('loanDueDay') as HTMLInputElement).value, 10) || 5, 1, 31)
     };
 
     if (editingId) {
@@ -834,10 +862,10 @@ function setupForms() {
       name: (document.getElementById('invName') as HTMLInputElement).value,
       category: (document.getElementById('invCategory') as HTMLSelectElement).value,
       type: (document.getElementById('invType') as HTMLSelectElement).value,
-      monthlySip: parseFloat((document.getElementById('invMonthlySip') as HTMLInputElement).value) || 0,
+      monthlySip: parseNonNegativeNumber((document.getElementById('invMonthlySip') as HTMLInputElement).value),
       platform: (document.getElementById('invPlatform') as HTMLInputElement).value,
-      totalInvested: parseFloat((document.getElementById('invTotalInvested') as HTMLInputElement).value) || 0,
-      currentValue: parseFloat((document.getElementById('invCurrentValue') as HTMLInputElement).value) || 0
+      totalInvested: parseNonNegativeNumber((document.getElementById('invTotalInvested') as HTMLInputElement).value),
+      currentValue: parseNonNegativeNumber((document.getElementById('invCurrentValue') as HTMLInputElement).value)
     };
 
     if (editingId) {
@@ -861,10 +889,10 @@ function setupForms() {
     const form = e.target;
     const editingId = form.dataset.editingId || (document.getElementById('salEditId') as HTMLInputElement)?.value;
     const monthYear = (document.getElementById('salMonthYear') as HTMLInputElement).value || currentMonthYear;
-    const grossVal = parseFloat((document.getElementById('salGross') as HTMLInputElement).value) || 0;
-    const dedVal = parseFloat((document.getElementById('salDeductions') as HTMLInputElement).value) || 0;
+    const grossVal = parsePositiveNumber((document.getElementById('salGross') as HTMLInputElement).value);
+    const dedVal = parseNonNegativeNumber((document.getElementById('salDeductions') as HTMLInputElement).value);
     const netInputVal = (document.getElementById('salNet') as HTMLInputElement).value;
-    const netVal = netInputVal ? parseFloat(netInputVal) : (grossVal - dedVal);
+    const netVal = netInputVal ? parseNonNegativeNumber(netInputVal) : Math.max(0, grossVal - dedVal);
 
     store.addOrUpdateSalary({
       id: editingId || undefined,
@@ -892,8 +920,8 @@ function setupForms() {
     const debtData = {
       personName: (document.getElementById('debtPersonName') as HTMLInputElement).value,
       type: (document.getElementById('debtType') as HTMLSelectElement).value as any,
-      amount: parseFloat((document.getElementById('debtAmount') as HTMLInputElement).value) || 0,
-      settledAmount: parseFloat((document.getElementById('debtSettledAmount') as HTMLInputElement).value) || 0,
+      amount: parsePositiveNumber((document.getElementById('debtAmount') as HTMLInputElement).value),
+      settledAmount: parseNonNegativeNumber((document.getElementById('debtSettledAmount') as HTMLInputElement).value),
       date: (document.getElementById('debtDate') as HTMLInputElement).value || new Date().toISOString().split('T')[0],
       dueDate: (document.getElementById('debtDueDate') as HTMLInputElement).value || '',
       notes: (document.getElementById('debtNotes') as HTMLInputElement).value || ''

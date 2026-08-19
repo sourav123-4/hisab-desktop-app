@@ -83,6 +83,7 @@ export interface MonthlyMetrics {
 
 export interface SecuritySettings {
   enabled: boolean;
+  pinEnabled: boolean;
   hasPin: boolean;
   fingerprintEnabled: boolean;
   notificationsEnabled: boolean;

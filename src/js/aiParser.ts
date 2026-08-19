@@ -1,5 +1,8 @@
 import type { Transaction } from '../types/index.js';
 
+const FOOD_CONTEXT_REGEX = /\b(food|zomato|swiggy|blinkit|zepto|instamart|bigbasket|restaurant|dining|dhaba|hotel|tiffin|mess|canteen|cafe|caf[eé]|bakery|sweet\s*shop|eatery|meal|meals|dinner|lunch|breakfast|brunch|snack|snacks|tea|chai|coffee|cold\s*drink|soft\s*drink|soda|juice|lassi|shake|milkshake|smoothie|water\s*bottle|mineral\s*water|drinking\s*water|pizza|burger|sandwich|pasta|noodle|noodles|chowmein|chowmin|maggi|momos?|rolls?|wraps?|samosa|singara|kachori|kochuri|luchi|puri|poori|paratha|parotha|roti|chapati|naan|kulcha|dosa|idli|vada|uttapam|upma|poha|pav|pao|bhaji|misal|biryani|biriyani|fried\s*rice|rice|chawal|pulao|polao|khichdi|khichuri|dal|daal|curry|gravy|soup|salad|thali|bhojan|khana|khaye|khaya|sabz?i|sabji|tarkari|alu|aloo|potato|tomato|pyaz|onion|garlic|ginger|vegetables?|veggies|veg|fruit|fruits|apple|banana|kela|kele|mango|orange|grapes|fish(?:es)?|machli|machhli|maach|chingri|katla|rohu|hilsa|ilish|prawns?|crab|seafood|chilli|chilly|chili|chicken|chiken|chikn|murgi|mutton|meat|beef|pork|kabab|kebab|tandoori|tikka|eggs?|anda|ande|omelette|omlet|paneer|chana|rajma|chole|bhature|cheese|butter|ghee|curd|dahi|yogurt|cream|bread|toast|biscuit|biscuits|cookies?|chips|chanachur|namkeen|bhujia|muri|jhalmuri|popcorn|pakora|pakoda|chop|fuchka|puchka|golgappa|bhel|bhelpuri|ghugni|sweets?|mithai|jalebi|gulab\s*jamun|rasgulla|rosogolla|sandesh|pantua|payesh|kheer|halwa|cake|pastry|ice\s*cream|kulfi|dessert|ladd?u+s?|ladd?oo?s?|chocolate|chocolates|candy|candies|toffee|mint|mints|mentos|center\s*fresh|centre\s*fresh|pass\s*pass|passpass|paan|mouth\s*freshener|groceries|grocery|kirana|supermarket|ration|atta|flour|maida|suji|besan|oil|mustard\s*oil|masala|spices?|salt|sugar|posto)\b/i;
+const UTILITY_CONTEXT_REGEX = /\b(electricity|bijli|bill|wifi|broadband|recharge|jio|airtel|power|gas|utility|mobile|rent)\b/i;
+
 export function cleanHisabTitle(raw: string, category: string = 'Others', type: string = 'expense'): string {
   if (!raw || typeof raw !== 'string') {
     return `${category} ${type === 'expense' ? 'Expense' : 'Transaction'}`;
@@ -49,6 +52,8 @@ export function cleanHisabTitle(raw: string, category: string = 'Others', type: 
     if (/^bir[iy]*ani$/i.test(lowerClean)) return 'Biryani';
     if (/^kela|kele$/i.test(lowerClean)) return 'Kela';
     if (/^pass\s*pass$/i.test(lowerClean)) return 'Pass Pass';
+    if (/^(chilli|chilly|chili)\s+(chicken|chiken|chikn)$/i.test(lowerClean)) return 'Chilli Chicken';
+    if (/^(chicken|chiken|chikn)$/i.test(lowerClean)) return 'Chicken';
 
     return cleaned
       .split(' ')
@@ -63,14 +68,14 @@ export function detectCategoryFromText(text: string): string {
   if (!text || typeof text !== 'string') return 'Others';
   const lower = text.toLowerCase();
 
-  if (/shopping|amazon|flipkart|clothes|clothing|shoes?|shoe|joota|joote|sneakers?|footwear|pants?|pant|shirt|shirts|jeans|t-shirt|tshirt|dress|myntra|zudio|trends|electronics|mall|khareeda/i.test(lower)) {
-    return 'Shopping';
-  }
-  if (/food|zomato|swiggy|blinkit|zepto|instamart|restaurant|dining|dinner|lunch|breakfast|tea|chai|coffee|starbucks|mcdonalds|kfc|dominos|pizza|burger|pasta|noodle|noodles|momos|roll|rolls|samosa|singara|dosa|idli|paratha|parotha|sweets?|mithai|jalebi|gulab\s*jamun|rasgulla|rosogolla|sandesh|pantua|payesh|kheer|halwa|cake|pastry|ice\s*cream|kulfi|dessert|ladd?u+s?|ladd?oo?s?|laddu|ladoo|juice|fruits?|apple|banana|kela|kele|mango|orange|fish(es)?|machli|machhli|maach|chingri|katla|rohu|hilsa|ilish|prawns?|crab|seafood|chicken|murgi|mutton|meat|beef|pork|kabab|kebab|tandoori|tikka|eggs?|anda|ande|omelette|omlet|milk|doodh|paneer|chana|rajma|chole|bhature|pav|bhaji|misal|vada|pao|cheese|butter|ghee|curd|dahi|lassi|yogurt|cream|bread|roti|puri|poori|luchi|kochuri|kachori|dal|daal|rice|chawal|bir[iy]*ani|pulao|polao|khichdi|khichuri|curry|gravy|soup|salad|khana|khaye|khaya|snack|snacks|biscuit|biscuits|cookie|cookies|chips|chanachur|namkeen|bhujia|muri|jhalmuri|chocolate|chocolates|pass\s*pass|passpass|paan|\bpan\b|mouth\s*freshener|candy|candies|toffee|mint|mints|mentos|center\s*fresh|centre\s*fresh|hotel|tiffin|mess|canteen|cafe|bakery|bhojan|groceries|grocery|kirana|supermarket|vegetables?|veg|sabz?i|sabji|tarkari|alu|aloo|potato|tomato|pyaz|onion|garlic|ginger|posto|popcorn|pakora|pakoda|chop|fuchka|puchka|golgappa|bhel|bhelpuri|ghugni/i.test(lower)) {
+  if (FOOD_CONTEXT_REGEX.test(lower)) {
     return 'Food';
   }
-  if (/electricity|bijli|bill|water|wifi|broadband|recharge|jio|airtel|power|gas|utility|mobile|rent/i.test(lower)) {
+  if (UTILITY_CONTEXT_REGEX.test(lower) || /\bwater\b/i.test(lower)) {
     return 'Bills';
+  }
+  if (/shopping|amazon|flipkart|clothes|clothing|shoes?|shoe|joota|joote|sneakers?|footwear|pants?|pant|shirt|shirts|jeans|t-shirt|tshirt|dress|myntra|zudio|trends|electronics|mall|khareeda/i.test(lower)) {
+    return 'Shopping';
   }
   if (/petrol|diesel|fuel|tel|uber|ola|rapido|cab|auto|bus|flight|train|metro|transport|fastag|bike|car|parking|toll|rickshaw|toto/i.test(lower)) {
     return 'Transport';
@@ -194,4 +199,3 @@ export function parseMultipleHisabs(text: string): Array<Partial<Transaction>> {
 
   return results;
 }
-

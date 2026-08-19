@@ -76,20 +76,20 @@ export function renderSettingsModal(): void {
             
             <!-- Custom Styled Toggle Switch with White Sliding Knob -->
             <label class="switch" style="position: relative; display: inline-flex; align-items: center; width: 46px; height: 24px; cursor: pointer; flex-shrink: 0;">
-              <input type="checkbox" id="pinToggleCheck" ${security.enabled ? 'checked' : ''} style="display: none;">
-              <span style="position: absolute; inset: 0; background: ${security.enabled ? 'var(--grad-primary)' : 'rgba(255,255,255,0.12)'}; border-radius: 24px; transition: all 0.25s ease; border: 1px solid ${security.enabled ? 'rgba(168,85,247,0.5)' : 'rgba(255,255,255,0.15)'};">
-                <span style="position: absolute; top: 2px; left: ${security.enabled ? '23px' : '3px'}; width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); transition: all 0.25s ease;"></span>
+              <input type="checkbox" id="pinToggleCheck" ${security.pinEnabled ? 'checked' : ''} style="display: none;">
+              <span style="position: absolute; inset: 0; background: ${security.pinEnabled ? 'var(--grad-primary)' : 'rgba(255,255,255,0.12)'}; border-radius: 24px; transition: all 0.25s ease; border: 1px solid ${security.pinEnabled ? 'rgba(168,85,247,0.5)' : 'rgba(255,255,255,0.15)'};">
+                <span style="position: absolute; top: 2px; left: ${security.pinEnabled ? '23px' : '3px'}; width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); transition: all 0.25s ease;"></span>
               </span>
             </label>
           </div>
 
           <!-- PIN Code Setup Box -->
-          <div id="pinSetupBox" style="display: ${security.enabled ? 'block' : 'none'}; background: rgba(0, 0, 0, 0.25); padding: 14px 16px; border-radius: 16px; border: 1px solid var(--border-color);">
+          <div id="pinSetupBox" style="display: ${security.pinEnabled ? 'block' : 'none'}; background: rgba(0, 0, 0, 0.25); padding: 14px 16px; border-radius: 16px; border: 1px solid var(--border-color);">
             <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">
               Enter 4-Digit Passcode
             </label>
             <div style="display: flex; gap: 10px; align-items: center;">
-              <input type="password" id="pinInputCode" maxlength="4" class="form-control" placeholder="••••" style="width: 120px; font-size: 18px; font-weight: 800; letter-spacing: 6px; text-align: center; border-radius: 10px; padding: 6px 10px;" value="${security.hasPin ? '••••' : ''}" />
+              <input type="password" id="pinInputCode" maxlength="4" inputmode="numeric" pattern="\\d{4}" autocomplete="off" class="form-control" placeholder="••••" style="width: 120px; font-size: 18px; font-weight: 800; letter-spacing: 6px; text-align: center; border-radius: 10px; padding: 6px 10px;" value="${security.hasPin ? '••••' : ''}" />
               <button class="btn btn-primary btn-sm" id="savePinBtn" style="font-weight: 700; padding: 8px 16px; border-radius: 10px;">Save PIN</button>
             </div>
             <span id="pinStatusText" style="font-size: 11.5px; font-weight: 600; color: var(--accent-success); margin-top: 8px; display: block;"></span>

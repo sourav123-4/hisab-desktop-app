@@ -205,7 +205,7 @@
           </div>
           <div class="form-group">
             <label>Amount (₹) *</label>
-            <input type="number" step="any" id="txAmount" class="form-control" placeholder="0.00" required>
+            <input type="number" step="any" min="0" id="txAmount" class="form-control" placeholder="0.00" required>
           </div>
         </div>
 
@@ -290,17 +290,17 @@
         <div class="form-row">
           <div class="form-group">
             <label>Original Loan Amount (₹) *</label>
-            <input type="number" id="loanTotalAmount" class="form-control" placeholder="50000" required>
+            <input type="number" min="0" id="loanTotalAmount" class="form-control" placeholder="50000" required>
           </div>
           <div class="form-group">
             <label>Remaining Loan Amount (₹) *</label>
-            <input type="number" id="loanRemainingAmount" class="form-control" placeholder="35000" required>
+            <input type="number" min="0" id="loanRemainingAmount" class="form-control" placeholder="35000" required>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label>Monthly EMI (₹) *</label>
-            <input type="number" id="loanMonthlyEmi" class="form-control" placeholder="5000" required>
+            <input type="number" min="0" id="loanMonthlyEmi" class="form-control" placeholder="5000" required>
           </div>
           <div class="form-group">
             <label>EMI Due Day of Month (1 - 31)</label>
@@ -359,7 +359,7 @@
         <div class="form-row">
           <div class="form-group">
             <label>Monthly SIP Amount (₹)</label>
-            <input type="number" id="invMonthlySip" class="form-control" placeholder="5000" value="0">
+            <input type="number" min="0" id="invMonthlySip" class="form-control" placeholder="5000" value="0">
           </div>
           <div class="form-group">
             <label>Platform / Broker</label>
@@ -369,11 +369,11 @@
         <div class="form-row">
           <div class="form-group">
             <label>Total Invested / Capital Amount (₹)</label>
-            <input type="number" id="invTotalInvested" class="form-control" placeholder="50000">
+            <input type="number" min="0" id="invTotalInvested" class="form-control" placeholder="50000">
           </div>
           <div class="form-group">
             <label>Current Portfolio Value (₹)</label>
-            <input type="number" id="invCurrentValue" class="form-control" placeholder="58000">
+            <input type="number" min="0" id="invCurrentValue" class="form-control" placeholder="58000">
           </div>
         </div>
 
@@ -407,17 +407,17 @@
         <div class="form-row">
           <div class="form-group">
             <label>Gross Salary (₹) *</label>
-            <input type="number" id="salGross" class="form-control" placeholder="100000" required>
+            <input type="number" min="0" id="salGross" class="form-control" placeholder="100000" required>
           </div>
           <div class="form-group">
             <label>Deductions (PF + TDS Tax) (₹)</label>
-            <input type="number" id="salDeductions" class="form-control" placeholder="8000" value="0">
+            <input type="number" min="0" id="salDeductions" class="form-control" placeholder="8000" value="0">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label>Net Amount Received (₹)</label>
-            <input type="number" id="salNet" class="form-control" placeholder="92000">
+            <input type="number" min="0" id="salNet" class="form-control" placeholder="92000">
           </div>
           <div class="form-group">
             <label>Credit Date</label>
@@ -459,11 +459,11 @@
         <div class="form-row">
           <div class="form-group">
             <label>Total Udhar Amount (₹) *</label>
-            <input type="number" step="any" id="debtAmount" class="form-control" placeholder="5000" required>
+            <input type="number" step="any" min="0" id="debtAmount" class="form-control" placeholder="5000" required>
           </div>
           <div class="form-group">
             <label>Already Settled Amount (₹)</label>
-            <input type="number" step="any" id="debtSettledAmount" class="form-control" placeholder="0" value="0">
+            <input type="number" step="any" min="0" id="debtSettledAmount" class="form-control" placeholder="0" value="0">
           </div>
         </div>
 

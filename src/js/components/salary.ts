@@ -100,7 +100,7 @@ export function renderSalaryView(container: HTMLElement, currentMonthYear: strin
       </div>
 
       <div class="table-responsive">
-        <table class="custom-table">
+        <table class="custom-table salary-income-table">
           <thead>
             <tr>
               <th>Date</th>
@@ -144,7 +144,7 @@ export function renderSalaryView(container: HTMLElement, currentMonthYear: strin
       </div>
 
       <div class="table-responsive">
-        <table class="custom-table">
+        <table class="custom-table salary-history-table">
           <thead>
             <tr>
               <th>Month / Year</th>

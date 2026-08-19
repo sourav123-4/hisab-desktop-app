@@ -76,6 +76,12 @@ assert.strictEqual(loan.monthlyEmi, 15000);
 
 const editedLoan = store.editLoan(loan.id, { remainingAmount: 450000 });
 assert.strictEqual(editedLoan?.remainingAmount, 450000);
+store.editLoan(loan.id, { emiDay: 99, remainingAmount: -100, monthlyEmi: -10 });
+const sanitizedLoan = store.getLoans().find(l => l.id === loan.id);
+assert.strictEqual(sanitizedLoan?.emiDay, 31);
+assert.strictEqual(sanitizedLoan?.remainingAmount, 0);
+assert.strictEqual(sanitizedLoan?.monthlyEmi, 0);
+store.editLoan(loan.id, { remainingAmount: 450000, monthlyEmi: 15000, emiDay: 10 });
 
 store.payEmiForLoan(loan.id, '2026-08');
 const updatedLoan = store.getLoans().find(l => l.id === loan.id);
@@ -146,6 +152,17 @@ assert.strictEqual(settledDebt?.status, 'partially_paid');
 store.settleDebtPartial(debt.id, 6000);
 const fullySettled = store.getDebts().find(d => d.id === debt.id);
 assert.strictEqual(fullySettled?.status, 'settled');
+
+const overSettledDebt = store.addDebt({
+  personName: 'Priya',
+  type: 'borrowed',
+  amount: 1000,
+  settledAmount: 5000,
+  date: '2026-08-11'
+});
+assert.strictEqual(overSettledDebt.settledAmount, 1000);
+assert.strictEqual(overSettledDebt.status, 'settled');
+store.deleteDebt(overSettledDebt.id);
 console.log('✅ Test 10 Passed: Udhar (Borrowed / Lent) & Settlement');
 
 // Test 11: AI Natural Language Parser (Single Entry)
@@ -177,6 +194,25 @@ const ladduTx = parseNaturalLanguageHisab('bought 150 laddu');
 assert.strictEqual(ladduTx?.title, 'Laddu');
 assert.strictEqual(ladduTx?.category, 'Food');
 
+const groceryShoppingTx = parseNaturalLanguageHisab('grocery shopping 900');
+assert.strictEqual(groceryShoppingTx?.category, 'Food');
+
+const hotelFoodTx = parseNaturalLanguageHisab("kaka's hotel 74");
+assert.strictEqual(hotelFoodTx?.category, 'Food');
+
+const chowmeinTx = parseNaturalLanguageHisab('chowmein and coffee 220');
+assert.strictEqual(chowmeinTx?.category, 'Food');
+
+const chilliChickenTypoTx = parseNaturalLanguageHisab('chilli chiken 180');
+assert.strictEqual(chilliChickenTypoTx?.title, 'Chilli Chicken');
+assert.strictEqual(chilliChickenTypoTx?.category, 'Food');
+
+const drinkingWaterTx = parseNaturalLanguageHisab('mineral water bottle 40');
+assert.strictEqual(drinkingWaterTx?.category, 'Food');
+
+const waterBillTx = parseNaturalLanguageHisab('water bill 300');
+assert.strictEqual(waterBillTx?.category, 'Bills');
+
 const pantTx = parseNaturalLanguageHisab('i bought pant 1200');
 assert.strictEqual(pantTx?.title, 'Pants');
 assert.strictEqual(pantTx?.category, 'Shopping');
@@ -198,6 +234,10 @@ console.log('✅ Test 14 Passed: Clean Title & Category Extraction (Food/Shoppin
 const autoFish = store.addTransaction({ title: 'i buy some fish', amount: 400, category: 'Others', type: 'expense' });
 assert.strictEqual(autoFish.title, 'Fish');
 assert.strictEqual(autoFish.category, 'Food');
+
+const autoChilliChicken = store.addTransaction({ title: 'chilli chiken', amount: 180, category: 'Others', type: 'expense' });
+assert.strictEqual(autoChilliChicken.title, 'Chilli Chicken');
+assert.strictEqual(autoChilliChicken.category, 'Food');
 
 store.data.transactions.push({ id: 'raw-1', title: 'bought 200 laddu', amount: 200, category: 'Others', type: 'expense', paymentMethod: 'UPI', date: '2026-08-17' });
 const rephrasedCount = store.rephraseAllEntries();
@@ -222,4 +262,3 @@ console.log('✅ Test 16 Passed: Delete Operations & Clean Up');
 
 console.log('\n🎉 ALL 16 COMPREHENSIVE UNIT TESTS PASSED CLEANLY!\n');
 process.exit(0);
-

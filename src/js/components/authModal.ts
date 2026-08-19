@@ -33,11 +33,11 @@ export function renderAuthModalHTML(): string {
           <form id="loginForm">
             <div class="form-group">
               <label>Email Address *</label>
-              <input type="email" id="loginEmail" class="form-control" placeholder="name@example.com" required />
+              <input type="email" id="loginEmail" class="form-control" placeholder="name@example.com" autocomplete="email" required />
             </div>
             <div class="form-group">
               <label>Password *</label>
-              <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required />
+              <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" autocomplete="current-password" required />
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 8px; font-weight: 700;">
               Sign In & Sync Data
@@ -47,15 +47,15 @@ export function renderAuthModalHTML(): string {
           <form id="registerForm" style="display: none;">
             <div class="form-group">
               <label>Full Name</label>
-              <input type="text" id="regName" class="form-control" placeholder="e.g. Sourav Mahanty" />
+              <input type="text" id="regName" class="form-control" placeholder="e.g. Sourav Mahanty" autocomplete="name" />
             </div>
             <div class="form-group">
               <label>Email Address *</label>
-              <input type="email" id="regEmail" class="form-control" placeholder="name@example.com" required />
+              <input type="email" id="regEmail" class="form-control" placeholder="name@example.com" autocomplete="email" required />
             </div>
             <div class="form-group">
               <label>Password *</label>
-              <input type="password" id="regPassword" class="form-control" placeholder="At least 6 characters" required minlength="6" />
+              <input type="password" id="regPassword" class="form-control" placeholder="At least 6 characters" autocomplete="new-password" required minlength="6" />
             </div>
             <button type="submit" class="btn btn-success" style="width: 100%; margin-top: 8px; font-weight: 700;">
               Create New Account
@@ -66,7 +66,7 @@ export function renderAuthModalHTML(): string {
             <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 14px;">Enter your registered email address to receive a password reset link.</p>
             <div class="form-group">
               <label>Registered Email *</label>
-              <input type="email" id="forgotEmail" class="form-control" placeholder="name@example.com" required />
+              <input type="email" id="forgotEmail" class="form-control" placeholder="name@example.com" autocomplete="email" required />
             </div>
             <button type="submit" class="btn btn-secondary" style="width: 100%; margin-top: 8px; font-weight: 700;">
               Send Reset Link

@@ -92,7 +92,7 @@ export function renderHisabView(container: HTMLElement, currentMonthYear: string
       </div>
 
       <div class="table-responsive">
-        <table class="custom-table" id="hisabTable">
+        <table class="custom-table ledger-table" id="hisabTable">
           <thead>
             <tr>
               <th>Date</th>
