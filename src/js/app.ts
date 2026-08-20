@@ -293,17 +293,10 @@ function startApp() {
     if (e.key === 'Enter') processAISmartSave();
   });
 
-  // Dictation entry event listeners
+  // Multi-entry parser event listeners
   aiVoiceBtn?.addEventListener('click', () => {
     openVoiceModal();
   });
-
-  const macDictationBtn = document.getElementById('macDictationBtn');
-  if (macDictationBtn) {
-    macDictationBtn.addEventListener('click', async () => {
-      await triggerSystemDictation();
-    });
-  }
 
   const voiceTranscriptInput = document.getElementById('voiceTranscriptInput') as HTMLTextAreaElement | null;
   if (voiceTranscriptInput) {
@@ -361,32 +354,9 @@ function openVoiceModal() {
   }
   if (statusText) {
     statusText.style.color = 'var(--accent-primary)';
-    statusText.textContent = 'Use system dictation or type multiple transactions below.';
+    statusText.textContent = 'Type one or multiple transactions below.';
   }
   updateVoicePreview();
-}
-
-async function triggerSystemDictation() {
-  openVoiceModal();
-  const statusText = document.getElementById('voiceStatusText');
-  const transcriptInput = document.getElementById('voiceTranscriptInput') as HTMLTextAreaElement | null;
-  try {
-    if (transcriptInput) transcriptInput.focus();
-    if (statusText) {
-      statusText.style.color = 'var(--accent-primary)';
-      statusText.textContent = 'Starting system dictation. Speak, then review the text before saving.';
-    }
-    const started = await window.electronAPI?.triggerDictation?.();
-    if (!started && statusText) {
-      statusText.style.color = 'var(--accent-warning)';
-      statusText.textContent = 'System dictation is not available here. Type your entries below.';
-    }
-  } catch (err) {
-    if (statusText) {
-      statusText.style.color = 'var(--accent-warning)';
-      statusText.textContent = 'System dictation could not be started. Type your entries below.';
-    }
-  }
 }
 
 function updateVoicePreview() {
@@ -418,7 +388,7 @@ function handleVoiceSubmit() {
   const voiceTranscriptInput = document.getElementById('voiceTranscriptInput') as HTMLTextAreaElement | null;
   const text = voiceTranscriptInput?.value.trim();
   if (!text) {
-    showToast('⚠️ No text to save — speak or type transactions first.', 'warning');
+    showToast('⚠️ No text to save — type transactions first.', 'warning');
     return;
   }
 
@@ -452,7 +422,7 @@ function handleVoiceSubmit() {
       }
     });
 
-    showToast(`🎙️ Entries saved: ${summaryItems.join(' | ')}`);
+    showToast(`Entries saved: ${summaryItems.join(' | ')}`);
     closeModal('voiceModal');
     if (voiceTranscriptInput) voiceTranscriptInput.value = '';
     renderCurrentTab();

@@ -173,7 +173,6 @@ declare global {
       appVersion: string;
       platform: string;
       isElectron: boolean;
-      triggerDictation: () => Promise<boolean>;
       openExternalUrl: (url: string) => Promise<boolean>;
       getAuthCallbackUrl: () => Promise<string>;
       startGoogleOAuth: (options: Record<string, any>) => Promise<boolean>;

@@ -1,5 +1,5 @@
 const { app, BrowserWindow, nativeImage, session, systemPreferences, ipcMain, shell, Notification, Tray, Menu } = require('electron');
-const { exec, execFile } = require('child_process');
+const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -57,22 +57,6 @@ ipcMain.handle('prompt-touch-id', async () => {
     console.warn('[Touch ID Prompt Error]', err);
     return { success: false, reason: err.message || 'Touch ID verification failed' };
   }
-});
-
-ipcMain.handle('trigger-dictation', async () => {
-  return new Promise((resolve) => {
-    if (process.platform === 'darwin') {
-      exec("osascript -e 'tell application \"System Events\" to key code 63'", (err) => {
-        resolve(!err);
-      });
-    } else if (process.platform === 'win32') {
-      exec("powershell -Command \"$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('#h')\"", (err) => {
-        resolve(!err);
-      });
-    } else {
-      resolve(false);
-    }
-  });
 });
 
 let localServerUrl = null;
@@ -571,19 +555,13 @@ ipcMain.handle('check-for-updates', async () => {
 });
 
 app.whenReady().then(async () => {
-  if (process.platform === 'darwin') {
-    try {
-      await systemPreferences.askForMediaAccess('microphone');
-    } catch (e) {}
-  }
-
   const customUserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
   session.defaultSession.setUserAgent(customUserAgent);
 
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    callback(true);
+    callback(permission !== 'media');
   });
-  session.defaultSession.setPermissionCheckHandler(() => true);
+  session.defaultSession.setPermissionCheckHandler((webContents, permission) => permission !== 'media');
 
   await startLocalServer();
   createWindow();

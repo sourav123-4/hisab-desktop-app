@@ -5,7 +5,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appVersion: '1.0.0',
   platform: process.platform,
   isElectron: true,
-  triggerDictation: () => ipcRenderer.invoke('trigger-dictation'),
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
   getAuthCallbackUrl: () => ipcRenderer.invoke('get-auth-callback-url'),
   startGoogleOAuth: (options) => ipcRenderer.invoke('start-google-oauth', options),
