@@ -1,4 +1,4 @@
-const { app, BrowserWindow, nativeImage, session, systemPreferences, ipcMain, shell, Notification, Tray, Menu } = require('electron');
+const { app, BrowserWindow, nativeImage, session, systemPreferences, ipcMain, shell, Notification, Tray, Menu, safeStorage } = require('electron');
 const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -41,6 +41,171 @@ try {
 
 // Enable hardware audio & media access switches
 app.commandLine.appendSwitch('enable-speech-dispatcher');
+
+function getVoiceConfigPath() {
+  return path.join(app.getPath('userData'), 'voice-transcription.json');
+}
+
+function encryptSecret(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  try {
+    if (safeStorage && safeStorage.isEncryptionAvailable()) {
+      return {
+        encoding: 'safeStorage',
+        value: safeStorage.encryptString(raw).toString('base64')
+      };
+    }
+  } catch (err) {
+    console.warn('[Voice Config] Secure storage unavailable:', err.message);
+  }
+  return {
+    encoding: 'base64',
+    value: Buffer.from(raw, 'utf8').toString('base64')
+  };
+}
+
+function decryptSecret(payload) {
+  if (!payload || !payload.value) return '';
+  try {
+    if (payload.encoding === 'safeStorage' && safeStorage && safeStorage.isEncryptionAvailable()) {
+      return safeStorage.decryptString(Buffer.from(payload.value, 'base64')).trim();
+    }
+    if (payload.encoding === 'base64') {
+      return Buffer.from(payload.value, 'base64').toString('utf8').trim();
+    }
+  } catch (err) {
+    console.warn('[Voice Config] Could not read saved voice transcription key.');
+  }
+  return '';
+}
+
+function readVoiceTranscriptionKey() {
+  try {
+    const configPath = getVoiceConfigPath();
+    if (!fs.existsSync(configPath)) return '';
+    const saved = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    return decryptSecret(saved.apiKey);
+  } catch (err) {
+    console.warn('[Voice Config] Could not load voice transcription settings.');
+    return '';
+  }
+}
+
+ipcMain.handle('get-voice-transcription-status', async () => {
+  return { configured: Boolean(readVoiceTranscriptionKey()) };
+});
+
+ipcMain.handle('save-voice-transcription-key', async (event, apiKey) => {
+  const encrypted = encryptSecret(apiKey);
+  if (!encrypted) {
+    return { success: false, message: 'Enter a valid transcription key.' };
+  }
+
+  try {
+    fs.mkdirSync(app.getPath('userData'), { recursive: true });
+    fs.writeFileSync(getVoiceConfigPath(), JSON.stringify({
+      provider: 'groq',
+      apiKey: encrypted,
+      updatedAt: new Date().toISOString()
+    }, null, 2));
+    return { success: true };
+  } catch (err) {
+    console.warn('[Voice Config] Could not save voice transcription settings:', err.message);
+    return { success: false, message: 'Could not save transcription settings.' };
+  }
+});
+
+ipcMain.handle('clear-voice-transcription-key', async () => {
+  try {
+    const configPath = getVoiceConfigPath();
+    if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    return { success: true };
+  } catch (err) {
+    console.warn('[Voice Config] Could not clear voice transcription settings:', err.message);
+    return { success: false, message: 'Could not clear transcription settings.' };
+  }
+});
+
+ipcMain.handle('transcribe-audio', async (event, arrayBuffer, mimeType) => {
+  const transcriptionUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
+  const apiKey = readVoiceTranscriptionKey();
+
+  if (!apiKey) {
+    return {
+      success: false,
+      code: 'not_configured',
+      error: 'Voice transcription needs setup. Add your transcription key in Settings.'
+    };
+  }
+
+  const extByMime = {
+    'audio/webm': 'webm',
+    'audio/ogg': 'ogg',
+    'audio/mp4': 'mp4',
+    'audio/mpeg': 'mp3',
+    'audio/wav': 'wav',
+    'audio/x-wav': 'wav',
+    'audio/flac': 'flac'
+  };
+
+  try {
+    const buffer = Buffer.from(arrayBuffer);
+    if (!buffer || buffer.length < 2000) {
+      return { success: false, error: "Recording too short. Try speaking a little longer." };
+    }
+
+    const baseMime = String(mimeType || 'audio/wav').split(';')[0].trim();
+    const ext = extByMime[baseMime] || 'wav';
+    const form = new FormData();
+    form.append('file', new Blob([buffer], { type: baseMime }), `audio.${ext}`);
+    form.append('model', 'whisper-large-v3-turbo');
+    form.append('response_format', 'json');
+    form.append('temperature', '0');
+
+    let res;
+    try {
+      res = await fetch(transcriptionUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+        signal: AbortSignal.timeout(20000)
+      });
+    } catch (err) {
+      if (err.name === 'TimeoutError') {
+        return { success: false, error: 'Transcription timed out. Try again.' };
+      }
+      return { success: false, error: 'Could not reach the transcription service. Check your internet connection.' };
+    }
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      console.error(`[Voice Transcription Error] HTTP ${res.status}: ${detail.slice(0, 300)}`);
+      if (res.status === 401) {
+        return { success: false, code: 'invalid_key', error: 'Voice transcription key was rejected. Update it in Settings.' };
+      }
+      if (res.status === 429) {
+        return { success: false, error: 'Voice transcription is rate limited. Wait a moment and try again.' };
+      }
+      return { success: false, error: 'Voice transcription failed. Try again.' };
+    }
+
+    const data = await res.json();
+    let transcript = String(data.text || '').trim();
+    if (!transcript) {
+      return { success: false, error: "Didn't hear anything. Speak louder or closer to the mic." };
+    }
+
+    transcript = transcript
+      .replace(/\$/g, '₹')
+      .replace(/\b(?:USD|dollars?|dollar)\b/gi, 'rupees');
+
+    return { success: true, text: transcript };
+  } catch (err) {
+    console.error('[Voice Transcription Error]', err.message);
+    return { success: false, error: 'Voice transcription failed. Try again.' };
+  }
+});
 
 ipcMain.handle('prompt-touch-id', async () => {
   if (process.platform !== 'darwin') {
@@ -559,9 +724,9 @@ app.whenReady().then(async () => {
   session.defaultSession.setUserAgent(customUserAgent);
 
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    callback(permission !== 'media');
+    callback(true);
   });
-  session.defaultSession.setPermissionCheckHandler((webContents, permission) => permission !== 'media');
+  session.defaultSession.setPermissionCheckHandler(() => true);
 
   await startLocalServer();
   createWindow();

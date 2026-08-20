@@ -141,6 +141,22 @@ export function renderSettingsModal(): void {
 
         <hr style="border: 0; border-top: 1px dashed var(--border-color); margin: 0;" />
 
+        <!-- Voice Transcription Section -->
+        <div>
+          <label style="font-weight: 700; font-size: 13.5px; color: var(--text-primary); display: block; margin-bottom: 8px;">
+            🎙️ Voice Recording Transcription
+          </label>
+          <span style="font-size: 11.5px; color: var(--text-secondary); display: block; margin-bottom: 10px;">Save your transcription key locally to enable record-and-convert voice entries.</span>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <input type="password" id="voiceTranscriptionKeyInput" class="form-control" placeholder="Paste transcription API key" autocomplete="off" style="flex: 1; min-width: 220px; font-size: 12px;" />
+            <button class="btn btn-primary btn-sm" id="saveVoiceKeyBtn" style="font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 10px;">Save Key</button>
+            <button class="btn btn-secondary btn-sm" id="clearVoiceKeyBtn" style="font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 10px;">Clear</button>
+          </div>
+          <span id="voiceKeyStatusText" style="font-size: 11.5px; color: var(--text-secondary); margin-top: 8px; display: block;">Checking voice transcription setup...</span>
+        </div>
+
+        <hr style="border: 0; border-top: 1px dashed var(--border-color); margin: 0;" />
+
         <!-- Data Backup & Restore -->
         <div>
           <label style="font-weight: 700; font-size: 13.5px; color: var(--text-primary); display: block; margin-bottom: 10px;">
@@ -266,6 +282,52 @@ export function renderSettingsModal(): void {
         Notification.requestPermission().then(() => {
           new Notification('Daily Hisab Alert', { body: 'This is a test notification from Daily Hisab!' });
         });
+      }
+    };
+  }
+
+  const voiceKeyInput = document.getElementById('voiceTranscriptionKeyInput') as HTMLInputElement | null;
+  const saveVoiceKeyBtn = document.getElementById('saveVoiceKeyBtn');
+  const clearVoiceKeyBtn = document.getElementById('clearVoiceKeyBtn');
+  const voiceKeyStatusText = document.getElementById('voiceKeyStatusText');
+
+  const refreshVoiceKeyStatus = async () => {
+    if (!voiceKeyStatusText) return;
+    if (!window.electronAPI?.getVoiceTranscriptionStatus) {
+      voiceKeyStatusText.textContent = 'Voice recording is available in the desktop app.';
+      return;
+    }
+    const status = await window.electronAPI.getVoiceTranscriptionStatus();
+    voiceKeyStatusText.textContent = status.configured
+      ? 'Voice recording is ready.'
+      : 'Voice recording needs a saved transcription key.';
+  };
+  refreshVoiceKeyStatus();
+
+  if (saveVoiceKeyBtn && voiceKeyInput) {
+    saveVoiceKeyBtn.onclick = async () => {
+      const key = voiceKeyInput.value.trim();
+      if (!key) {
+        if (voiceKeyStatusText) voiceKeyStatusText.textContent = 'Paste a transcription key first.';
+        return;
+      }
+      const result = await window.electronAPI?.saveVoiceTranscriptionKey?.(key);
+      if (result?.success) {
+        voiceKeyInput.value = '';
+        if (voiceKeyStatusText) voiceKeyStatusText.textContent = 'Voice recording is ready.';
+      } else if (voiceKeyStatusText) {
+        voiceKeyStatusText.textContent = result?.message || 'Could not save voice transcription key.';
+      }
+    };
+  }
+
+  if (clearVoiceKeyBtn) {
+    clearVoiceKeyBtn.onclick = async () => {
+      const result = await window.electronAPI?.clearVoiceTranscriptionKey?.();
+      if (voiceKeyStatusText) {
+        voiceKeyStatusText.textContent = result?.success
+          ? 'Voice transcription key cleared.'
+          : result?.message || 'Could not clear voice transcription key.';
       }
     };
   }

@@ -17,6 +17,11 @@ import { checkAndTriggerDesktopAlerts } from './notifications.js';
 
 let activeTab = 'dashboard';
 let currentMonthYear = getCurrentMonthYear();
+let micStream: MediaStream | null = null;
+let mediaRecorder: MediaRecorder | null = null;
+let audioChunks: Blob[] = [];
+let audioContext: any = null;
+let isAudioRecording = false;
 
 function getCurrentMonthYear(): string {
   const now = new Date();
@@ -152,6 +157,7 @@ function startApp() {
   // Global Keyboard Escape Listener to Close Open Modals
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
+      stopAudioRecording();
       document.querySelectorAll('.modal-overlay.active').forEach(modal => {
         closeModal(modal.id);
       });
@@ -164,6 +170,7 @@ function startApp() {
     if (closeBtn) {
       const modalId = closeBtn.getAttribute('data-close');
       if (modalId) {
+        if (modalId === 'voiceModal') stopAudioRecording();
         closeModal(modalId);
       }
     }
@@ -173,6 +180,7 @@ function startApp() {
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e: any) => {
       if (e.target === overlay) {
+        if (overlay.id === 'voiceModal') stopAudioRecording();
         closeModal(overlay.id);
       }
     });
@@ -298,6 +306,24 @@ function startApp() {
     openVoiceModal();
   });
 
+  const toggleRecordBtn = document.getElementById('toggleRecordBtn');
+  if (toggleRecordBtn) {
+    toggleRecordBtn.addEventListener('click', () => {
+      if (isAudioRecording) {
+        stopAudioRecording();
+      } else {
+        startAudioRecording();
+      }
+    });
+  }
+
+  const voiceSettingsBtn = document.getElementById('voiceSettingsBtn');
+  if (voiceSettingsBtn) {
+    voiceSettingsBtn.addEventListener('click', () => {
+      renderSettingsModal();
+    });
+  }
+
   const voiceTranscriptInput = document.getElementById('voiceTranscriptInput') as HTMLTextAreaElement | null;
   if (voiceTranscriptInput) {
     voiceTranscriptInput.addEventListener('input', updateVoicePreview);
@@ -354,9 +380,183 @@ function openVoiceModal() {
   }
   if (statusText) {
     statusText.style.color = 'var(--accent-primary)';
-    statusText.textContent = 'Type one or multiple transactions below.';
+    statusText.textContent = 'Ready to record or type multiple transactions.';
   }
   updateVoicePreview();
+}
+
+async function startAudioRecording() {
+  openVoiceModal();
+
+  const statusText = document.getElementById('voiceStatusText');
+  const toggleBtn = document.getElementById('toggleRecordBtn');
+  const micCircle = document.querySelector('.mic-circle') as HTMLElement | null;
+  const transcriptInput = document.getElementById('voiceTranscriptInput') as HTMLTextAreaElement | null;
+
+  if (!window.electronAPI?.transcribeAudio) {
+    if (statusText) {
+      statusText.style.color = 'var(--accent-warning)';
+      statusText.textContent = 'Voice recording is available in the desktop app.';
+    }
+    return;
+  }
+
+  try {
+    const status = await window.electronAPI.getVoiceTranscriptionStatus?.();
+    if (!status?.configured) {
+      if (statusText) {
+        statusText.style.color = 'var(--accent-warning)';
+        statusText.textContent = 'Voice recording needs setup. Add your transcription key in Settings.';
+      }
+      return;
+    }
+  } catch (err) {
+    if (statusText) {
+      statusText.style.color = 'var(--accent-warning)';
+      statusText.textContent = 'Voice recording setup could not be checked. Open Settings and try again.';
+    }
+    return;
+  }
+
+  audioChunks = [];
+  isAudioRecording = false;
+
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/wav'].find(t =>
+      MediaRecorder.isTypeSupported(t)
+    );
+
+    mediaRecorder = mimeType
+      ? new MediaRecorder(micStream, { mimeType })
+      : new MediaRecorder(micStream);
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+      }
+      if (audioContext) {
+        try { audioContext.close(); } catch (e) {}
+        audioContext = null;
+      }
+
+      const blob = new Blob(audioChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+      audioChunks = [];
+
+      if (blob.size < 1200) {
+        if (statusText) {
+          statusText.style.color = 'var(--accent-warning)';
+          statusText.textContent = 'Recording too short. Speak a little longer and try again.';
+        }
+        return;
+      }
+
+      if (statusText) {
+        statusText.style.color = 'var(--accent-primary)';
+        statusText.textContent = 'Transcribing audio...';
+      }
+
+      try {
+        const res = await window.electronAPI?.transcribeAudio(await blob.arrayBuffer(), blob.type);
+        if (res?.success && res.text) {
+          const cleanText = String(res.text || '')
+            .replace(/\$/g, '₹')
+            .replace(/\b(?:USD|dollars?|dollar)\b/gi, 'rupees')
+            .trim();
+          if (transcriptInput) {
+            transcriptInput.value = cleanText;
+            updateVoicePreview();
+          }
+          if (statusText) {
+            statusText.style.color = 'var(--accent-success)';
+            statusText.textContent = 'Audio transcribed. Review and save the entries below.';
+          }
+        } else if (statusText) {
+          statusText.style.color = 'var(--accent-warning)';
+          statusText.textContent = res?.error || 'Could not transcribe audio. Try again or type the entries.';
+        }
+      } catch (err) {
+        if (statusText) {
+          statusText.style.color = 'var(--accent-warning)';
+          statusText.textContent = 'Could not transcribe audio. Try again or type the entries.';
+        }
+      }
+    };
+
+    mediaRecorder.start();
+    isAudioRecording = true;
+
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioCtx) {
+      audioContext = new AudioCtx();
+      const source = audioContext.createMediaStreamSource(micStream);
+      const analyser = audioContext.createAnalyser();
+      source.connect(analyser);
+      analyser.fftSize = 64;
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const updateVol = () => {
+        if (!isAudioRecording) return;
+        analyser.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        if (micCircle) {
+          micCircle.style.transform = `scale(${1 + Math.min(avg / 90, 0.5)})`;
+          micCircle.style.boxShadow = `0 0 ${15 + Math.min(avg / 3, 30)}px rgba(239, 68, 68, 0.6)`;
+        }
+        requestAnimationFrame(updateVol);
+      };
+      updateVol();
+    }
+
+    if (toggleBtn) {
+      toggleBtn.innerHTML = 'Stop & Transcribe';
+      toggleBtn.className = 'btn btn-danger btn-sm';
+    }
+    if (statusText) {
+      statusText.style.color = '#ef4444';
+      statusText.textContent = 'Recording... speak now, then click Stop & Transcribe.';
+    }
+  } catch (micErr) {
+    isAudioRecording = false;
+    if (micStream) {
+      micStream.getTracks().forEach(t => t.stop());
+      micStream = null;
+    }
+    if (statusText) {
+      statusText.style.color = 'var(--accent-warning)';
+      statusText.textContent = 'Microphone permission is needed for voice recording.';
+    }
+  }
+}
+
+function stopAudioRecording() {
+  if (!isAudioRecording) return;
+  isAudioRecording = false;
+
+  const statusText = document.getElementById('voiceStatusText');
+  const toggleBtn = document.getElementById('toggleRecordBtn');
+  const micCircle = document.querySelector('.mic-circle') as HTMLElement | null;
+
+  if (toggleBtn) {
+    toggleBtn.innerHTML = '🔴 Start Voice Recording';
+    toggleBtn.className = 'btn btn-secondary btn-sm';
+  }
+  if (micCircle) {
+    micCircle.style.transform = 'scale(1)';
+    micCircle.style.boxShadow = 'none';
+  }
+
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    if (statusText) {
+      statusText.style.color = 'var(--accent-primary)';
+      statusText.textContent = 'Transcribing audio...';
+    }
+    mediaRecorder.stop();
+  }
 }
 
 function updateVoicePreview() {

@@ -63,13 +63,12 @@ test('planner supports add and edit flows', async ({ page }, testInfo) => {
   await expect(page.locator('.metric-card').filter({ hasText: `Emergency Fund UI ${suffix}` }).first()).toBeVisible();
 });
 
-test('multi-entry modal does not expose voice, recording, or provider key errors', async ({ page }) => {
+test('voice modal exposes recording without provider key errors', async ({ page }) => {
   await page.locator('#aiVoiceBtn').click();
   await expect(page.locator('#voiceModal')).toHaveClass(/active/);
-  await expect(page.locator('#toggleRecordBtn')).toHaveCount(0);
-  await expect(page.locator('#macDictationBtn')).toHaveCount(0);
-  await expect(page.locator('#voiceModal')).not.toContainText(/GROQ|API_KEY|api key|Start Voice Recording|dictation|microphone|system dictation/i);
-  await expect(page.locator('#aiVoiceBtn')).not.toContainText('🎙️');
+  await expect(page.locator('#toggleRecordBtn')).toBeVisible();
+  await expect(page.locator('#voiceSettingsBtn')).toBeVisible();
+  await expect(page.locator('#voiceModal')).not.toContainText(/GROQ_API_KEY|VITE_GROQ|API_KEY is missing|api key missing/i);
 
   await page.locator('#voiceTranscriptInput').fill('350 petrol, 500 groceries via UPI');
   await expect(page.locator('#voicePreviewItems')).toContainText('Found 2 Hisab Entries');

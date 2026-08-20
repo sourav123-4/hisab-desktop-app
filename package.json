@@ -1,6 +1,6 @@
 {
   "name": "daily-hisab",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Daily Hisab desktop app for expenses, investments, loans/EMIs, and salary tracking",
   "desktopName": "daily-hisab",
   "main": "main.cjs",
@@ -49,6 +49,9 @@
       "identity": null,
       "gatekeeperAssess": false,
       "hardenedRuntime": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Daily Hisab uses the microphone to convert your spoken expense entries into text."
+      },
       "target": [
         {
           "target": "dmg",
