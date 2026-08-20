@@ -531,40 +531,74 @@ function createWindow() {
       mainWindow.loadFile(path.join(__dirname, 'index.html'));
     });
   }
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
 }
-  function createTray() {
-    if (appTray) return;
-    try {
-      const iconPath = path.join(__dirname, 'assets/icon.png');
-      const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
-      appTray = new Tray(trayIcon);
-      appTray.setToolTip('Daily Hisab Personal Finance');
 
-      const contextMenu = Menu.buildFromTemplate([
-        { label: '💰 Open Daily Hisab', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
-        { label: '⚡ Quick Add Entry', click: () => {
-            if (mainWindow) {
-              mainWindow.show();
-              mainWindow.focus();
-              mainWindow.webContents.send('open-quick-add');
-            }
-          }
-        },
-        { type: 'separator' },
-        { label: 'Quit', click: () => app.quit() }
-      ]);
-
-      appTray.setContextMenu(contextMenu);
-      appTray.on('click', () => {
-        if (mainWindow) {
-          if (mainWindow.isVisible()) mainWindow.hide();
-          else { mainWindow.show(); mainWindow.focus(); }
+function showMainWindow(onReady) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    if (onReady && mainWindow) {
+      mainWindow.webContents.once('did-finish-load', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          onReady();
         }
       });
-    } catch (e) {
-      console.warn('Could not initialize system tray:', e.message);
+    }
+  } else {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    if (onReady) {
+      onReady();
     }
   }
+}
+
+function createTray() {
+  if (appTray) return;
+  try {
+    const iconPath = path.join(__dirname, 'assets/icon.png');
+    const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
+    appTray = new Tray(trayIcon);
+    appTray.setToolTip('Daily Hisab Personal Finance');
+
+    const contextMenu = Menu.buildFromTemplate([
+      { label: '💰 Open Daily Hisab', click: () => showMainWindow() },
+      { 
+        label: '⚡ Quick Add Entry', 
+        click: () => {
+          showMainWindow(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('open-quick-add');
+            }
+          });
+        }
+      },
+      { type: 'separator' },
+      { label: 'Quit', click: () => app.quit() }
+    ]);
+
+    appTray.setContextMenu(contextMenu);
+    appTray.on('click', () => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        createWindow();
+      } else {
+        if (mainWindow.isVisible()) {
+          mainWindow.hide();
+        } else {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    });
+  } catch (e) {
+    console.warn('Could not initialize system tray:', e.message);
+  }
+}
 
 ipcMain.handle('send-desktop-notification', async (event, { title, body }) => {
   try {
