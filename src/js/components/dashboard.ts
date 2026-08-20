@@ -21,6 +21,7 @@ export function renderDashboardView(container: HTMLElement, currentMonthYear: st
   const currency = store.data.currency || '₹';
   const totalExpensesAndEmis = metrics.totalExpenses + metrics.totalEmisPaid;
   const exactCashBalance = metrics.remainingBalance;
+  const insights = store.getMonthlyInsights(currentMonthYear);
 
   const isAlreadyInDom = container.querySelector('#cashFlowCanvas') !== null;
 
@@ -49,6 +50,13 @@ export function renderDashboardView(container: HTMLElement, currentMonthYear: st
           <input type="text" id="dashboardAiInput" class="form-control" placeholder="Type e.g. 'Paid 350 for groceries via UPI' or '350 petrol' or 'Salary 45000'..." style="flex: 1; font-weight: 500;" />
           <button class="btn btn-primary btn-sm" id="dashboardAiSaveBtn">✨ Save Entry</button>
         </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-header">
+          <span class="card-title">Smart Monthly Insights</span>
+        </div>
+        <div id="dashboardInsightsGrid" class="metrics-grid" style="grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px;"></div>
       </div>
 
       <div class="metrics-grid">
@@ -223,6 +231,21 @@ export function renderDashboardView(container: HTMLElement, currentMonthYear: st
     dashBoxBalance.style.color = exactCashBalance >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)';
   }
 
+  const insightsGrid = container.querySelector('#dashboardInsightsGrid');
+  if (insightsGrid) {
+    insightsGrid.innerHTML = insights.length === 0
+      ? `<div class="empty-state" style="grid-column: 1 / -1;">Add more hisab entries to unlock spending insights.</div>`
+      : insights.slice(0, 4).map(i => `
+        <div class="metric-card" style="padding: 14px;">
+          <div class="metric-header">
+            <span class="metric-title">${escapeHTML(i.title)}</span>
+            <span class="badge ${i.severity === 'danger' ? 'badge-danger' : i.severity === 'warning' ? 'badge-warning' : i.severity === 'good' ? 'badge-success' : 'badge-info'}">${escapeHTML(i.severity)}</span>
+          </div>
+          <div class="metric-sub" style="line-height: 1.45;">${escapeHTML(i.detail)}</div>
+        </div>
+      `).join('');
+  }
+
   const recentTbody = container.querySelector('#dashboardRecentTbody');
   if (recentTbody) {
     const recentList = store.getRecentTransactions(7);
@@ -266,6 +289,13 @@ export function renderDashboardView(container: HTMLElement, currentMonthYear: st
           (document.getElementById('txCategory') as HTMLSelectElement).value = tx.category || 'Food';
           (document.getElementById('txType') as HTMLSelectElement).value = tx.type || 'expense';
           (document.getElementById('txPaymentMethod') as HTMLSelectElement).value = tx.paymentMethod || 'UPI';
+          const cardSelect = document.getElementById('txCreditCard') as HTMLSelectElement | null;
+          if (cardSelect) {
+            cardSelect.innerHTML = `<option value="">No linked card</option>` + store.getCreditCards().map(card => `<option value="${escapeHTML(card.id)}">${escapeHTML(card.name)}${card.bank ? ` • ${escapeHTML(card.bank)}` : ''}</option>`).join('');
+            cardSelect.value = tx.linkedCreditCardId || '';
+          }
+          const tagsInput = document.getElementById('txTags') as HTMLInputElement | null;
+          if (tagsInput) tagsInput.value = (tx.tags || []).join(', ');
           (document.getElementById('txDate') as HTMLInputElement).value = tx.date || new Date().toISOString().split('T')[0];
           (document.getElementById('txNotes') as HTMLInputElement).value = tx.notes || '';
           const modalTitle = document.querySelector('#txModal .modal-header h3');

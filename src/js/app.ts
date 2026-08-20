@@ -7,6 +7,7 @@ import { renderInvestmentsView } from './components/investments.js';
 import { renderSalaryView } from './components/salary.js';
 import { renderDebtsView, openDebtModal } from './components/debts.js';
 import { renderBudgetsView } from './components/budgets.js';
+import { renderPlannerView } from './components/planner.js';
 import { renderAuthModalHTML, initAuthModalListeners, updateAuthModalUI } from './components/authModal.js';
 import { onAuthChange } from './firebase.js';
 import { onCloudStatusChange } from './firebaseSync.js';
@@ -37,6 +38,7 @@ const TAB_TITLES: Record<string, string> = {
   investments: 'Investments & SIP',
   salary: 'Salary & Income',
   debts: 'Udhar & Debts',
+  planner: 'Planner & Goals',
   budgets: 'Budgets & Backup'
 };
 
@@ -716,6 +718,9 @@ function renderCurrentTab() {
     case 'debts':
       renderDebtsView(container, currentMonthYear);
       break;
+    case 'planner':
+      renderPlannerView(container, currentMonthYear);
+      break;
     case 'budgets':
       renderBudgetsView(container, currentMonthYear);
       break;
@@ -729,6 +734,7 @@ function openModal(modalId: string) {
   if (!modal) return;
 
   if (modalId === 'txModal') {
+    populateCreditCardSelect();
     const form = document.getElementById('txForm') as HTMLFormElement | null;
     if (form && !form.dataset.editingId) {
       form.reset();
@@ -804,7 +810,9 @@ function setupForms() {
       type: (document.getElementById('txType') as HTMLSelectElement).value as any,
       paymentMethod: (document.getElementById('txPaymentMethod') as HTMLSelectElement).value,
       date: (document.getElementById('txDate') as HTMLInputElement).value,
-      notes: (document.getElementById('txNotes') as HTMLInputElement).value
+      notes: (document.getElementById('txNotes') as HTMLInputElement).value,
+      tags: splitCsv((document.getElementById('txTags') as HTMLInputElement | null)?.value || ''),
+      linkedCreditCardId: (document.getElementById('txCreditCard') as HTMLSelectElement | null)?.value || ''
     };
 
     if (editingId) {
@@ -965,6 +973,20 @@ function formatMonthDisplay(monthStr: string): string {
   const [yearStr, mStr] = monthStr.split('-');
   const date = new Date(parseInt(yearStr), parseInt(mStr) - 1, 1);
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function populateCreditCardSelect(selectedId: string = '') {
+  const select = document.getElementById('txCreditCard') as HTMLSelectElement | null;
+  if (!select) return;
+  const cards = store.getCreditCards();
+  select.innerHTML = `<option value="">No linked card</option>` + cards.map(card =>
+    `<option value="${escapeHTML(card.id)}">${escapeHTML(card.name)}${card.bank ? ` • ${escapeHTML(card.bank)}` : ''}</option>`
+  ).join('');
+  select.value = selectedId || '';
+}
+
+function splitCsv(value: string): string[] {
+  return String(value || '').split(',').map(v => v.trim()).filter(Boolean);
 }
 
 function escapeHTML(str: string): string {

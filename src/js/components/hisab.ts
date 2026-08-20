@@ -89,6 +89,18 @@ export function renderHisabView(container: HTMLElement, currentMonthYear: string
           <option value="investment">Investment</option>
           <option value="emi">EMI</option>
         </select>
+        <select id="hisabPaymentFilter" class="form-control" style="width: 165px;">
+          <option value="">All Payments</option>
+          <option value="UPI">UPI</option>
+          <option value="Cash">Cash</option>
+          <option value="Credit Card">Credit Card</option>
+          <option value="NetBanking">NetBanking</option>
+          <option value="Auto-Debit">Auto-Debit</option>
+        </select>
+        <input type="date" id="hisabFromDate" class="form-control" style="width: 155px;" title="From date">
+        <input type="date" id="hisabToDate" class="form-control" style="width: 155px;" title="To date">
+        <input type="number" id="hisabMinAmount" placeholder="Min ₹" class="form-control" style="width: 110px;">
+        <input type="number" id="hisabMaxAmount" placeholder="Max ₹" class="form-control" style="width: 110px;">
       </div>
 
       <div class="table-responsive">
@@ -115,18 +127,34 @@ export function renderHisabView(container: HTMLElement, currentMonthYear: string
   const searchInput = container.querySelector('#hisabSearchInput') as HTMLInputElement;
   const catFilter = container.querySelector('#hisabCategoryFilter') as HTMLSelectElement;
   const typeFilter = container.querySelector('#hisabTypeFilter') as HTMLSelectElement;
+  const paymentFilter = container.querySelector('#hisabPaymentFilter') as HTMLSelectElement;
+  const fromDateInput = container.querySelector('#hisabFromDate') as HTMLInputElement;
+  const toDateInput = container.querySelector('#hisabToDate') as HTMLInputElement;
+  const minAmountInput = container.querySelector('#hisabMinAmount') as HTMLInputElement;
+  const maxAmountInput = container.querySelector('#hisabMaxAmount') as HTMLInputElement;
   const tbody = container.querySelector('#hisabTableBody') as HTMLElement;
 
   const filterRows = () => {
     const query = searchInput.value.toLowerCase().trim();
     const cat = catFilter.value;
     const type = typeFilter.value;
+    const payment = paymentFilter.value;
+    const fromDate = fromDateInput.value;
+    const toDate = toDateInput.value;
+    const minAmount = parseFloat(minAmountInput.value);
+    const maxAmount = parseFloat(maxAmountInput.value);
 
     const filtered = txs.filter(t => {
-      const matchQuery = !query || t.title.toLowerCase().includes(query) || (t.notes && t.notes.toLowerCase().includes(query));
+      const tagsText = (t.tags || []).join(' ').toLowerCase();
+      const matchQuery = !query || t.title.toLowerCase().includes(query) || (t.notes && t.notes.toLowerCase().includes(query)) || tagsText.includes(query);
       const matchCat = !cat || t.category === cat;
       const matchType = !type || t.type === type;
-      return matchQuery && matchCat && matchType;
+      const matchPayment = !payment || t.paymentMethod === payment;
+      const matchFrom = !fromDate || t.date >= fromDate;
+      const matchTo = !toDate || t.date <= toDate;
+      const matchMin = !Number.isFinite(minAmount) || t.amount >= minAmount;
+      const matchMax = !Number.isFinite(maxAmount) || t.amount <= maxAmount;
+      return matchQuery && matchCat && matchType && matchPayment && matchFrom && matchTo && matchMin && matchMax;
     });
 
     tbody.innerHTML = renderTableRows(filtered, currency);
@@ -136,6 +164,11 @@ export function renderHisabView(container: HTMLElement, currentMonthYear: string
   searchInput.addEventListener('input', filterRows);
   catFilter.addEventListener('change', filterRows);
   typeFilter.addEventListener('change', filterRows);
+  paymentFilter.addEventListener('change', filterRows);
+  fromDateInput.addEventListener('change', filterRows);
+  toDateInput.addEventListener('change', filterRows);
+  minAmountInput.addEventListener('input', filterRows);
+  maxAmountInput.addEventListener('input', filterRows);
 
   attachActionListeners(tbody, currentMonthYear, container, txs);
 }
@@ -151,6 +184,7 @@ function renderTableRows(txs: Transaction[], currency: string): string {
       <td>
         <strong style="color: var(--text-primary); font-size: 14px;">${escapeHTML(tx.title)}</strong>
         ${tx.notes ? `<div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">${escapeHTML(tx.notes)}</div>` : ''}
+        ${(tx.tags || []).length > 0 ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">${(tx.tags || []).map(tag => `<span class="badge badge-info" style="font-size: 10px; margin-right: 4px;">#${escapeHTML(tag)}</span>`).join('')}</div>` : ''}
       </td>
       <td><span class="badge badge-info">${escapeHTML(tx.category)}</span></td>
       <td><span class="badge badge-purple" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); color: var(--text-primary);">${escapeHTML(tx.paymentMethod)}</span></td>
@@ -189,6 +223,13 @@ function attachActionListeners(tbody: HTMLElement, currentMonthYear: string, con
       (document.getElementById('txCategory') as HTMLSelectElement).value = tx.category || 'Food';
       (document.getElementById('txType') as HTMLSelectElement).value = tx.type || 'expense';
       (document.getElementById('txPaymentMethod') as HTMLSelectElement).value = tx.paymentMethod || 'UPI';
+      const cardSelect = document.getElementById('txCreditCard') as HTMLSelectElement | null;
+      if (cardSelect) {
+        cardSelect.innerHTML = `<option value="">No linked card</option>` + store.getCreditCards().map(card => `<option value="${escapeHTML(card.id)}">${escapeHTML(card.name)}${card.bank ? ` • ${escapeHTML(card.bank)}` : ''}</option>`).join('');
+        cardSelect.value = tx.linkedCreditCardId || '';
+      }
+      const tagsInput = document.getElementById('txTags') as HTMLInputElement | null;
+      if (tagsInput) tagsInput.value = (tx.tags || []).join(', ');
       (document.getElementById('txDate') as HTMLInputElement).value = tx.date || new Date().toISOString().split('T')[0];
       (document.getElementById('txNotes') as HTMLInputElement).value = tx.notes || '';
 

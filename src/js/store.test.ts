@@ -35,6 +35,8 @@ assert.strictEqual(store.getTransactions().length, 1);
 const editedTx = store.editTransaction(tx.id, { amount: 500, title: 'Updated Grocery' });
 assert.strictEqual(editedTx?.amount, 500);
 assert.strictEqual(editedTx?.title, 'Updated Grocery');
+store.editTransaction(tx.id, { tags: ['home', 'food'], linkedCreditCardId: 'card-test' });
+assert.deepStrictEqual(store.getTransactions().find(t => t.id === tx.id)?.tags, ['home', 'food']);
 console.log('✅ Test 2 Passed: Add & Edit Transaction');
 
 // Test 3: Calculate Monthly Metrics
@@ -165,16 +167,74 @@ assert.strictEqual(overSettledDebt.status, 'settled');
 store.deleteDebt(overSettledDebt.id);
 console.log('✅ Test 10 Passed: Udhar (Borrowed / Lent) & Settlement');
 
-// Test 11: AI Natural Language Parser (Single Entry)
+// Test 11: Recurring Transactions
+const recurring = store.addRecurringRule({
+  title: 'Monthly Rent',
+  amount: 12000,
+  category: 'Bills',
+  type: 'expense',
+  paymentMethod: 'Auto-Debit',
+  frequency: 'monthly',
+  dayOfMonth: 5,
+  startDate: '2026-08-01',
+  tags: ['fixed', 'rent']
+});
+assert.strictEqual(recurring.dayOfMonth, 5);
+assert.strictEqual(store.generateDueRecurringTransactions('2026-08'), 1);
+assert.strictEqual(store.generateDueRecurringTransactions('2026-08'), 0, 'Recurring generation is idempotent per month');
+assert.ok(store.getTransactions('2026-08').some(t => t.recurringRuleId === recurring.id && t.title === 'Monthly Rent'));
+store.editRecurringRule(recurring.id, { active: false });
+assert.strictEqual(store.getRecurringRules().find(r => r.id === recurring.id)?.active, false);
+console.log('✅ Test 11 Passed: Recurring Transaction Rules');
+
+// Test 12: Credit Cards
+const card = store.addCreditCard({
+  name: 'HDFC Millennia',
+  bank: 'HDFC',
+  limit: 100000,
+  statementDay: 1,
+  dueDay: 18,
+  currentOutstanding: 1000
+});
+store.addTransaction({
+  title: 'Card Shoes',
+  amount: 2500,
+  category: 'Shopping',
+  type: 'expense',
+  paymentMethod: 'Credit Card',
+  linkedCreditCardId: card.id,
+  date: '2026-08-18'
+});
+assert.strictEqual(store.getCreditCards().find(c => c.id === card.id)?.currentOutstanding, 3500);
+store.recordCreditCardPayment(card.id, 1500, '2026-08-20');
+assert.strictEqual(store.getCreditCards().find(c => c.id === card.id)?.currentOutstanding, 2000);
+assert.ok(store.getBillCalendarEvents('2026-08').some(e => e.type === 'credit-card'));
+console.log('✅ Test 12 Passed: Credit Card Tracker & Payments');
+
+// Test 13: Savings Goals
+const goal = store.addSavingsGoal({
+  name: 'Emergency Fund',
+  targetAmount: 100000,
+  currentAmount: 10000,
+  monthlyContribution: 5000,
+  targetDate: '2027-01-01'
+});
+store.contributeToSavingsGoal(goal.id, 5000, '2026-08-21');
+assert.strictEqual(store.getSavingsGoals().find(g => g.id === goal.id)?.currentAmount, 15000);
+store.editSavingsGoal(goal.id, { currentAmount: 100000 });
+assert.strictEqual(store.getSavingsGoals().find(g => g.id === goal.id)?.status, 'completed');
+console.log('✅ Test 13 Passed: Savings Goals & Contributions');
+
+// Test 14: AI Natural Language Parser (Single Entry)
 const parsedSingle = parseNaturalLanguageHisab('Paid 350 for lunch via UPI');
 assert.ok(parsedSingle, 'Parsed result exists');
 assert.strictEqual(parsedSingle?.amount, 350);
 assert.strictEqual(parsedSingle?.category, 'Food');
 assert.strictEqual(parsedSingle?.type, 'expense');
 assert.strictEqual(parsedSingle?.paymentMethod, 'UPI');
-console.log('✅ Test 11 Passed: AI Natural Language Single Entry Parser');
+console.log('✅ Test 14 Passed: AI Natural Language Single Entry Parser');
 
-// Test 12: AI Multi-Hisab Parser
+// Test 15: AI Multi-Hisab Parser
 const parsedMultiple = parseMultipleHisabs('350 petrol, 500 groceries via UPI, and 12000 emi');
 assert.strictEqual(parsedMultiple.length, 3, 'Extracted 3 entries');
 assert.strictEqual(parsedMultiple[0].amount, 350);
@@ -183,9 +243,24 @@ assert.strictEqual(parsedMultiple[1].amount, 500);
 assert.strictEqual(parsedMultiple[1].category, 'Food');
 assert.strictEqual(parsedMultiple[2].amount, 12000);
 assert.strictEqual(parsedMultiple[2].type, 'emi');
-console.log('✅ Test 12 Passed: AI Multi-Hisab Parser');
+console.log('✅ Test 15 Passed: AI Multi-Hisab Parser');
 
-// Test 14: Title Cleaning & Category Categorization (Food, Shopping, Transport, Invest, Borrow)
+// Test 16: Duplicate Detection, Split Expense, Calendar & Insights
+const duplicateCandidate = { title: 'Updated Grocery', amount: 500, date: '2026-08-15' };
+assert.ok(store.findDuplicateTransactions(duplicateCandidate).length >= 1, 'Duplicate transaction found');
+const split = store.addSplitExpense({
+  title: 'Dinner Split',
+  amount: 900,
+  category: 'Food',
+  paymentMethod: 'UPI',
+  date: '2026-08-22'
+}, ['Rahul', 'Amit'], true);
+assert.strictEqual(split.debts.length, 2);
+assert.ok(store.getBillCalendarEvents('2026-08').length > 0, 'Bill calendar has events');
+assert.ok(store.getMonthlyInsights('2026-08').length > 0, 'Monthly insights generated');
+console.log('✅ Test 16 Passed: Duplicate Detection, Split Expense, Calendar & Insights');
+
+// Test 17: Title Cleaning & Category Categorization (Food, Shopping, Transport, Invest, Borrow)
 const fishTx = parseNaturalLanguageHisab('i buy some fish 300');
 assert.strictEqual(fishTx?.title, 'Fish');
 assert.strictEqual(fishTx?.category, 'Food');
@@ -228,9 +303,9 @@ assert.strictEqual(stocksTx?.type, 'investment');
 const borrowTx = parseNaturalLanguageHisab('borrowed 500 from rahul');
 assert.strictEqual(borrowTx?.title, 'Rahul');
 assert.strictEqual(borrowTx?.type, 'income');
-console.log('✅ Test 14 Passed: Clean Title & Category Extraction (Food/Shopping/Transport/Invest/Borrow)');
+console.log('✅ Test 17 Passed: Clean Title & Category Extraction (Food/Shopping/Transport/Invest/Borrow)');
 
-// Test 15: Store Auto-Categorization & Bulk Rephrase Method
+// Test 18: Store Auto-Categorization & Bulk Rephrase Method
 const autoFish = store.addTransaction({ title: 'i buy some fish', amount: 400, category: 'Others', type: 'expense' });
 assert.strictEqual(autoFish.title, 'Fish');
 assert.strictEqual(autoFish.category, 'Food');
@@ -244,9 +319,9 @@ const rephrasedCount = store.rephraseAllEntries();
 assert.ok(rephrasedCount >= 1, 'Rephrased verbose transactions');
 assert.ok(store.getTransactions().some(t => t.title === 'Fish' && t.category === 'Food'));
 assert.ok(store.getTransactions().some(t => t.title === 'Laddu' && t.category === 'Food'));
-console.log('✅ Test 15 Passed: Store Auto-Categorization & Bulk Rephrase Method');
+console.log('✅ Test 18 Passed: Store Auto-Categorization & Bulk Rephrase Method');
 
-// Test 16: Delete Operations & Clean Up
+// Test 19: Delete Operations & Clean Up
 store.deleteTransaction(tx.id);
 assert.strictEqual(store.getTransactions().filter(t => t.id === tx.id).length, 0);
 
@@ -258,7 +333,13 @@ assert.strictEqual(store.getInvestments().filter(i => i.id === inv.id).length, 0
 
 store.deleteDebt(debt.id);
 assert.strictEqual(store.getDebts().filter(d => d.id === debt.id).length, 0);
-console.log('✅ Test 16 Passed: Delete Operations & Clean Up');
+store.deleteRecurringRule(recurring.id);
+assert.strictEqual(store.getRecurringRules().filter(r => r.id === recurring.id).length, 0);
+store.deleteCreditCard(card.id);
+assert.strictEqual(store.getCreditCards().filter(c => c.id === card.id).length, 0);
+store.deleteSavingsGoal(goal.id);
+assert.strictEqual(store.getSavingsGoals().filter(g => g.id === goal.id).length, 0);
+console.log('✅ Test 19 Passed: Delete Operations & Clean Up');
 
-console.log('\n🎉 ALL 16 COMPREHENSIVE UNIT TESTS PASSED CLEANLY!\n');
+console.log('\n🎉 ALL 19 COMPREHENSIVE UNIT TESTS PASSED CLEANLY!\n');
 process.exit(0);

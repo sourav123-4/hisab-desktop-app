@@ -145,6 +145,21 @@ export async function fullSyncToCloud(storeData: any): Promise<boolean> {
         await saveToCloud('investments', inv.id, inv);
       }
     }
+    if (Array.isArray(storeData.recurringRules)) {
+      for (const rule of storeData.recurringRules) {
+        await saveToCloud('recurringRules', rule.id, rule);
+      }
+    }
+    if (Array.isArray(storeData.creditCards)) {
+      for (const card of storeData.creditCards) {
+        await saveToCloud('creditCards', card.id, card);
+      }
+    }
+    if (Array.isArray(storeData.savingsGoals)) {
+      for (const goal of storeData.savingsGoals) {
+        await saveToCloud('savingsGoals', goal.id, goal);
+      }
+    }
     if (storeData.budgets) {
       await saveToCloud('settings', 'budgets', { categories: storeData.budgets });
     }

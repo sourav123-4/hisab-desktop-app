@@ -3,6 +3,7 @@ export type CategoryName = 'Food' | 'Bills' | 'Transport' | 'Shopping' | 'Entert
 export type PaymentMethod = 'UPI' | 'Cash' | 'Credit Card' | 'NetBanking' | 'Auto-Debit';
 export type ThemeName = 'dark' | 'light' | 'oled' | 'emerald';
 export type DebtType = 'lent' | 'borrowed';
+export type RecurringFrequency = 'monthly' | 'weekly' | 'yearly';
 
 export interface Transaction {
   id: string;
@@ -13,7 +14,64 @@ export interface Transaction {
   type: TransactionType;
   paymentMethod: PaymentMethod | string;
   notes?: string;
+  tags?: string[];
+  linkedCreditCardId?: string;
+  recurringRuleId?: string;
+  splitWith?: string[];
   isInternalSync?: boolean;
+}
+
+export interface RecurringRule {
+  id: string;
+  title: string;
+  amount: number;
+  category: CategoryName | string;
+  type: TransactionType;
+  paymentMethod: PaymentMethod | string;
+  frequency: RecurringFrequency;
+  dayOfMonth: number;
+  startDate: string;
+  endDate?: string;
+  notes?: string;
+  tags?: string[];
+  active: boolean;
+}
+
+export interface CreditCard {
+  id: string;
+  name: string;
+  bank: string;
+  limit: number;
+  statementDay: number;
+  dueDay: number;
+  currentOutstanding: number;
+  notes?: string;
+}
+
+export interface SavingsGoal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDate?: string;
+  monthlyContribution: number;
+  notes?: string;
+  status: 'active' | 'completed';
+}
+
+export interface FinanceInsight {
+  severity: 'good' | 'warning' | 'danger' | 'info';
+  title: string;
+  detail: string;
+}
+
+export interface BillCalendarEvent {
+  id: string;
+  date: string;
+  title: string;
+  amount: number;
+  type: 'emi' | 'recurring' | 'credit-card' | 'salary' | 'debt' | 'sip';
+  status: 'due' | 'paid' | 'pending';
 }
 
 export interface Loan {
@@ -90,6 +148,7 @@ export interface SecuritySettings {
 }
 
 export interface StoreData {
+  schemaVersion?: number;
   currency: string;
   theme: ThemeName;
   securityPinEnabled: boolean;
@@ -101,6 +160,9 @@ export interface StoreData {
   loans: Loan[];
   investments: Investment[];
   debts: DebtRecord[];
+  recurringRules: RecurringRule[];
+  creditCards: CreditCard[];
+  savingsGoals: SavingsGoal[];
   budgets: CategoryBudgets;
 }
 

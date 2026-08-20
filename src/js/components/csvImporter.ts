@@ -56,6 +56,7 @@ export function renderCsvImporterModal(): void {
 
           <div style="margin-bottom: 16px;">
             <div style="font-size: 11.5px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px;">Parsed Preview (<span id="csvParsedCount">0</span> transactions ready):</div>
+            <div id="csvDuplicateSummary" style="font-size: 11.5px; color: var(--accent-warning); margin-bottom: 6px;"></div>
             <div style="max-height: 180px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0,0,0,0.15);">
               <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; text-align: left;">
                 <thead>
@@ -64,6 +65,7 @@ export function renderCsvImporterModal(): void {
                     <th style="padding: 6px 10px;">Description</th>
                     <th style="padding: 6px 10px;">Amount (₹)</th>
                     <th style="padding: 6px 10px;">Type</th>
+                    <th style="padding: 6px 10px;">Import</th>
                   </tr>
                 </thead>
                 <tbody id="csvPreviewTableBody"></tbody>
@@ -86,6 +88,7 @@ export function renderCsvImporterModal(): void {
   let csvHeaders: string[] = [];
   let csvRows: string[][] = [];
   let parsedEntries: Partial<Transaction>[] = [];
+  let duplicateIndexes = new Set<number>();
 
   const closeModal = () => modal?.classList.remove('active');
   (document.getElementById('closeCsvModalBtn') as HTMLElement).onclick = closeModal;
@@ -162,6 +165,7 @@ export function renderCsvImporterModal(): void {
       const amountIdx = parseInt((document.getElementById('csvColAmount') as HTMLSelectElement).value);
 
       parsedEntries = [];
+      duplicateIndexes = new Set<number>();
       csvRows.forEach(row => {
         const rawDate = row[dateIdx] || new Date().toISOString().split('T')[0];
         const title = row[titleIdx] || 'Imported Entry';
@@ -170,27 +174,41 @@ export function renderCsvImporterModal(): void {
 
         if (amount > 0) {
           const isIncome = /credit|salary|refund|deposit/i.test(title) || parseFloat(rawAmount) > 0;
-          parsedEntries.push({
+          const entry = {
             date: sanitizeDate(rawDate),
             title: title,
             amount: amount,
             type: isIncome ? 'income' : 'expense',
             category: isIncome ? 'Income' : autoCategorize(title),
             paymentMethod: 'NetBanking'
-          });
+          };
+          if (store.findDuplicateTransactions(entry).length > 0) {
+            duplicateIndexes.add(parsedEntries.length);
+          }
+          parsedEntries.push(entry);
         }
       });
 
       const countEl = document.getElementById('csvParsedCount');
-      if (countEl) countEl.textContent = String(parsedEntries.length);
+      const importableCount = parsedEntries.length - duplicateIndexes.size;
+      if (countEl) countEl.textContent = String(importableCount);
+      const duplicateSummary = document.getElementById('csvDuplicateSummary');
+      if (duplicateSummary) {
+        duplicateSummary.textContent = duplicateIndexes.size > 0
+          ? `${duplicateIndexes.size} likely duplicate ${duplicateIndexes.size === 1 ? 'entry was' : 'entries were'} found and unchecked automatically.`
+          : '';
+      }
       const tbody = document.getElementById('csvPreviewTableBody');
       if (tbody) {
-        tbody.innerHTML = parsedEntries.slice(0, 10).map(entry => `
+        tbody.innerHTML = parsedEntries.map((entry, idx) => `
           <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
             <td style="padding: 6px 10px;">${entry.date}</td>
             <td style="padding: 6px 10px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${entry.title}</td>
             <td style="padding: 6px 10px; font-weight: 700;">₹${entry.amount}</td>
             <td style="padding: 6px 10px; color: ${entry.type === 'income' ? 'var(--accent-success)' : 'var(--text-primary)'};">${entry.type}</td>
+            <td style="padding: 6px 10px;">
+              <input type="checkbox" class="csv-import-check" data-index="${idx}" ${duplicateIndexes.has(idx) ? '' : 'checked'} title="${duplicateIndexes.has(idx) ? 'Likely duplicate' : 'Ready to import'}">
+            </td>
           </tr>
         `).join('');
       }
@@ -205,12 +223,20 @@ export function renderCsvImporterModal(): void {
   const submitBtn = document.getElementById('importCsvSubmitBtn');
   if (submitBtn) {
     submitBtn.onclick = () => {
-      if (parsedEntries.length === 0) {
+      const checkedIndexes = Array.from(document.querySelectorAll<HTMLInputElement>('.csv-import-check'))
+        .filter(input => input.checked)
+        .map(input => parseInt(input.dataset.index || '-1', 10))
+        .filter(idx => idx >= 0);
+      const entriesToImport = checkedIndexes.length > 0
+        ? checkedIndexes.map(idx => parsedEntries[idx]).filter(Boolean)
+        : parsedEntries.filter((_, idx) => !duplicateIndexes.has(idx));
+
+      if (entriesToImport.length === 0) {
         alert('No valid entries to import.');
         return;
       }
-      parsedEntries.forEach(entry => store.addTransaction(entry));
-      alert(`✅ Successfully imported ${parsedEntries.length} transactions!`);
+      entriesToImport.forEach(entry => store.addTransaction(entry));
+      alert(`✅ Successfully imported ${entriesToImport.length} transactions!${duplicateIndexes.size > 0 ? ` Skipped ${duplicateIndexes.size} likely duplicate(s).` : ''}`);
       closeModal();
     };
   }

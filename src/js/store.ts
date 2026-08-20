@@ -12,6 +12,11 @@ import type {
   Investment, 
   SalaryRecord, 
   DebtRecord,
+  RecurringRule,
+  CreditCard,
+  SavingsGoal,
+  FinanceInsight,
+  BillCalendarEvent,
   CategoryBudgets, 
   MonthlyMetrics, 
   SecuritySettings, 
@@ -40,6 +45,7 @@ function clampNumber(value: number, min: number, max: number): number {
 }
 
 const sampleData: StoreData = {
+  schemaVersion: 2,
   currency: '₹',
   theme: 'dark',
   securityPinEnabled: false,
@@ -51,6 +57,9 @@ const sampleData: StoreData = {
   loans: [],
   investments: [],
   debts: [],
+  recurringRules: [],
+  creditCards: [],
+  savingsGoals: [],
   budgets: {
     'Food': 0,
     'Bills': 0,
@@ -171,6 +180,36 @@ class Store {
         guestData.investments.forEach((i: Investment) => {
           if (!existingInvIds.has(i.id)) {
             userData.investments.push(i);
+            hasNewItems = true;
+          }
+        });
+      }
+
+      if (Array.isArray(guestData.recurringRules) && guestData.recurringRules.length > 0) {
+        const existingIds = new Set((userData.recurringRules || []).map((r: RecurringRule) => r.id));
+        guestData.recurringRules.forEach((r: RecurringRule) => {
+          if (!existingIds.has(r.id)) {
+            userData.recurringRules.push(r);
+            hasNewItems = true;
+          }
+        });
+      }
+
+      if (Array.isArray(guestData.creditCards) && guestData.creditCards.length > 0) {
+        const existingIds = new Set((userData.creditCards || []).map((c: CreditCard) => c.id));
+        guestData.creditCards.forEach((c: CreditCard) => {
+          if (!existingIds.has(c.id)) {
+            userData.creditCards.push(c);
+            hasNewItems = true;
+          }
+        });
+      }
+
+      if (Array.isArray(guestData.savingsGoals) && guestData.savingsGoals.length > 0) {
+        const existingIds = new Set((userData.savingsGoals || []).map((g: SavingsGoal) => g.id));
+        guestData.savingsGoals.forEach((g: SavingsGoal) => {
+          if (!existingIds.has(g.id)) {
+            userData.savingsGoals.push(g);
             hasNewItems = true;
           }
         });
@@ -308,6 +347,51 @@ class Store {
       }
     });
 
+    const unsubRecurring = subscribeToCloudCollection('recurringRules', (cloudRules: RecurringRule[]) => {
+      if (Array.isArray(cloudRules)) {
+        const prevJson = JSON.stringify(this.data.recurringRules);
+        const mergedMap = new Map<string, RecurringRule>();
+        (this.data.recurringRules || []).forEach(r => mergedMap.set(r.id, r));
+        cloudRules.forEach(r => mergedMap.set(r.id, r));
+        const newRules = Array.from(mergedMap.values());
+        if (JSON.stringify(newRules) !== prevJson) {
+          this.data.recurringRules = newRules;
+          this.save(this.data);
+          this.notifyStoreUpdate();
+        }
+      }
+    });
+
+    const unsubCards = subscribeToCloudCollection('creditCards', (cloudCards: CreditCard[]) => {
+      if (Array.isArray(cloudCards)) {
+        const prevJson = JSON.stringify(this.data.creditCards);
+        const mergedMap = new Map<string, CreditCard>();
+        (this.data.creditCards || []).forEach(c => mergedMap.set(c.id, c));
+        cloudCards.forEach(c => mergedMap.set(c.id, c));
+        const newCards = Array.from(mergedMap.values());
+        if (JSON.stringify(newCards) !== prevJson) {
+          this.data.creditCards = newCards;
+          this.save(this.data);
+          this.notifyStoreUpdate();
+        }
+      }
+    });
+
+    const unsubGoals = subscribeToCloudCollection('savingsGoals', (cloudGoals: SavingsGoal[]) => {
+      if (Array.isArray(cloudGoals)) {
+        const prevJson = JSON.stringify(this.data.savingsGoals);
+        const mergedMap = new Map<string, SavingsGoal>();
+        (this.data.savingsGoals || []).forEach(g => mergedMap.set(g.id, g));
+        cloudGoals.forEach(g => mergedMap.set(g.id, g));
+        const newGoals = Array.from(mergedMap.values());
+        if (JSON.stringify(newGoals) !== prevJson) {
+          this.data.savingsGoals = newGoals;
+          this.save(this.data);
+          this.notifyStoreUpdate();
+        }
+      }
+    });
+
     const unsubSet = subscribeToCloudCollection('settings', (cloudSettings: any[]) => {
       if (Array.isArray(cloudSettings)) {
         const budgetObj = cloudSettings.find(s => s.categories || s.id === 'budgets');
@@ -323,7 +407,7 @@ class Store {
       }
     });
 
-    this.activeUnsubscribers.push(unsubTx, unsubSal, unsubLoan, unsubInv, unsubDebts, unsubSet);
+    this.activeUnsubscribers.push(unsubTx, unsubSal, unsubLoan, unsubInv, unsubDebts, unsubRecurring, unsubCards, unsubGoals, unsubSet);
   }
 
   sanitizeData(parsed: any): StoreData {
@@ -340,6 +424,9 @@ class Store {
       loans: Array.isArray(parsed.loans) ? parsed.loans : [],
       investments: Array.isArray(parsed.investments) ? parsed.investments : [],
       debts: Array.isArray(parsed.debts) ? parsed.debts : [],
+      recurringRules: Array.isArray(parsed.recurringRules) ? parsed.recurringRules : [],
+      creditCards: Array.isArray(parsed.creditCards) ? parsed.creditCards : [],
+      savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : [],
       budgets: typeof parsed.budgets === 'object' && parsed.budgets !== null ? parsed.budgets : {
         'Food': 0,
         'Bills': 0,
@@ -347,7 +434,8 @@ class Store {
         'Shopping': 0,
         'Entertainment': 0,
         'Health': 0
-      }
+      },
+      schemaVersion: 2
     };
   }
 
@@ -430,6 +518,9 @@ class Store {
                   if (Array.isArray(legacyParsed.loans) && legacyParsed.loans.length > 0) data.loans = legacyParsed.loans;
                   if (Array.isArray(legacyParsed.investments) && legacyParsed.investments.length > 0) data.investments = legacyParsed.investments;
                   if (Array.isArray(legacyParsed.debts) && legacyParsed.debts.length > 0) data.debts = legacyParsed.debts;
+                  if (Array.isArray(legacyParsed.recurringRules) && legacyParsed.recurringRules.length > 0) data.recurringRules = legacyParsed.recurringRules;
+                  if (Array.isArray(legacyParsed.creditCards) && legacyParsed.creditCards.length > 0) data.creditCards = legacyParsed.creditCards;
+                  if (Array.isArray(legacyParsed.savingsGoals) && legacyParsed.savingsGoals.length > 0) data.savingsGoals = legacyParsed.savingsGoals;
                   if (legacyParsed.budgets) data.budgets = legacyParsed.budgets;
                   console.log(`[Store Auto-Recovery] Restored ${data.transactions.length} transactions from key: ${k}`);
                   break;
@@ -590,6 +681,15 @@ class Store {
       if (Array.isArray(this.data.investments)) {
         this.data.investments.forEach(inv => deletePromises.push(deleteFromCloud('investments', inv.id)));
       }
+      if (Array.isArray(this.data.recurringRules)) {
+        this.data.recurringRules.forEach(rule => deletePromises.push(deleteFromCloud('recurringRules', rule.id)));
+      }
+      if (Array.isArray(this.data.creditCards)) {
+        this.data.creditCards.forEach(card => deletePromises.push(deleteFromCloud('creditCards', card.id)));
+      }
+      if (Array.isArray(this.data.savingsGoals)) {
+        this.data.savingsGoals.forEach(goal => deletePromises.push(deleteFromCloud('savingsGoals', goal.id)));
+      }
 
       await Promise.race([
         Promise.all(deletePromises),
@@ -640,7 +740,11 @@ class Store {
       category: category,
       type: tx.type || 'expense',
       paymentMethod: tx.paymentMethod || 'UPI',
-      notes: tx.notes || ''
+      notes: tx.notes || '',
+      tags: Array.isArray(tx.tags) ? tx.tags.filter(Boolean).map(String) : [],
+      linkedCreditCardId: tx.linkedCreditCardId || '',
+      recurringRuleId: tx.recurringRuleId || '',
+      splitWith: Array.isArray(tx.splitWith) ? tx.splitWith.filter(Boolean).map(String) : []
     };
     this.data.transactions.unshift(newTx);
     saveToCloud('transactions', newTx.id, newTx);
@@ -700,6 +804,14 @@ class Store {
       }
     }
 
+    if (!tx.isInternalSync && newTx.paymentMethod === 'Credit Card' && newTx.linkedCreditCardId) {
+      const card = this.getCreditCards().find(c => c.id === newTx.linkedCreditCardId);
+      if (card && newTx.type === 'expense') {
+        card.currentOutstanding += newTx.amount;
+        saveToCloud('creditCards', card.id, card);
+      }
+    }
+
     this.save();
     if (!tx.isInternalSync) {
       triggerToast(`✨ Entry Done: ${newTx.title} (₹${newTx.amount.toLocaleString('en-IN')}) • ${newTx.category}`);
@@ -727,6 +839,10 @@ class Store {
     tx.paymentMethod = updatedTx.paymentMethod !== undefined ? updatedTx.paymentMethod : tx.paymentMethod;
     tx.date = updatedTx.date !== undefined ? updatedTx.date : tx.date;
     tx.notes = updatedTx.notes !== undefined ? updatedTx.notes : tx.notes;
+    tx.tags = updatedTx.tags !== undefined ? (Array.isArray(updatedTx.tags) ? updatedTx.tags.filter(Boolean).map(String) : []) : (tx.tags || []);
+    tx.linkedCreditCardId = updatedTx.linkedCreditCardId !== undefined ? updatedTx.linkedCreditCardId : (tx.linkedCreditCardId || '');
+    tx.recurringRuleId = updatedTx.recurringRuleId !== undefined ? updatedTx.recurringRuleId : (tx.recurringRuleId || '');
+    tx.splitWith = updatedTx.splitWith !== undefined ? (Array.isArray(updatedTx.splitWith) ? updatedTx.splitWith.filter(Boolean).map(String) : []) : (tx.splitWith || []);
 
     saveToCloud('transactions', tx.id, tx);
     this.save();
@@ -1033,6 +1149,366 @@ class Store {
     this.save();
     triggerToast(`🤝 Udhar Settled: ₹${pAmt.toLocaleString('en-IN')} ${isLent ? 'received from' : 'paid to'} ${debt.personName}`);
     this.notifyStoreUpdate();
+  }
+
+  getRecurringRules(): RecurringRule[] {
+    return Array.isArray(this.data.recurringRules) ? this.data.recurringRules : [];
+  }
+
+  addRecurringRule(rule: Partial<RecurringRule>): RecurringRule {
+    if (!Array.isArray(this.data.recurringRules)) this.data.recurringRules = [];
+    const newRule: RecurringRule = {
+      id: rule.id || ('rec-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
+      title: rule.title || 'Recurring Transaction',
+      amount: parsePositiveNumber(rule.amount),
+      category: rule.category || 'Others',
+      type: rule.type || 'expense',
+      paymentMethod: rule.paymentMethod || 'Auto-Debit',
+      frequency: rule.frequency || 'monthly',
+      dayOfMonth: clampNumber(parseInt(String(rule.dayOfMonth), 10) || 1, 1, 31),
+      startDate: rule.startDate || new Date().toISOString().split('T')[0],
+      endDate: rule.endDate || '',
+      notes: rule.notes || '',
+      tags: Array.isArray(rule.tags) ? rule.tags.filter(Boolean).map(String) : [],
+      active: rule.active !== undefined ? Boolean(rule.active) : true
+    };
+    this.data.recurringRules.push(newRule);
+    saveToCloud('recurringRules', newRule.id, newRule);
+    this.save();
+    triggerToast(`🔁 Recurring Rule Saved: ${newRule.title}`);
+    this.notifyStoreUpdate();
+    return newRule;
+  }
+
+  editRecurringRule(id: string, updatedRule: Partial<RecurringRule>): RecurringRule | null {
+    const rule = this.getRecurringRules().find(r => r.id === id);
+    if (!rule) return null;
+    rule.title = updatedRule.title !== undefined ? updatedRule.title : rule.title;
+    rule.amount = updatedRule.amount !== undefined ? parsePositiveNumber(updatedRule.amount) : rule.amount;
+    rule.category = updatedRule.category !== undefined ? updatedRule.category : rule.category;
+    rule.type = updatedRule.type !== undefined ? updatedRule.type : rule.type;
+    rule.paymentMethod = updatedRule.paymentMethod !== undefined ? updatedRule.paymentMethod : rule.paymentMethod;
+    rule.frequency = updatedRule.frequency !== undefined ? updatedRule.frequency : rule.frequency;
+    rule.dayOfMonth = updatedRule.dayOfMonth !== undefined ? clampNumber(parseInt(String(updatedRule.dayOfMonth), 10) || 1, 1, 31) : rule.dayOfMonth;
+    rule.startDate = updatedRule.startDate !== undefined ? updatedRule.startDate : rule.startDate;
+    rule.endDate = updatedRule.endDate !== undefined ? updatedRule.endDate : rule.endDate;
+    rule.notes = updatedRule.notes !== undefined ? updatedRule.notes : rule.notes;
+    rule.tags = updatedRule.tags !== undefined ? (Array.isArray(updatedRule.tags) ? updatedRule.tags.filter(Boolean).map(String) : []) : (rule.tags || []);
+    rule.active = updatedRule.active !== undefined ? Boolean(updatedRule.active) : rule.active;
+    saveToCloud('recurringRules', rule.id, rule);
+    this.save();
+    this.notifyStoreUpdate();
+    return rule;
+  }
+
+  deleteRecurringRule(id: string): void {
+    this.data.recurringRules = this.getRecurringRules().filter(r => r.id !== id);
+    deleteFromCloud('recurringRules', id);
+    this.save();
+    triggerToast('🔁 Recurring rule deleted', 'warning');
+    this.notifyStoreUpdate();
+  }
+
+  generateDueRecurringTransactions(monthYear: string): number {
+    const rules = this.getRecurringRules().filter(r => r.active);
+    const [year, month] = monthYear.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    let created = 0;
+    rules.forEach(rule => {
+      if (rule.frequency !== 'monthly') return;
+      const date = `${monthYear}-${String(clampNumber(rule.dayOfMonth || 1, 1, daysInMonth)).padStart(2, '0')}`;
+      if (rule.startDate && date < rule.startDate) return;
+      if (rule.endDate && date > rule.endDate) return;
+      const exists = this.data.transactions.some(tx => tx.recurringRuleId === rule.id && tx.date && tx.date.startsWith(monthYear));
+      if (exists) return;
+      this.addTransaction({
+        title: rule.title,
+        amount: rule.amount,
+        category: rule.category,
+        type: rule.type,
+        paymentMethod: rule.paymentMethod,
+        date,
+        notes: rule.notes || `Auto-created from recurring rule`,
+        tags: rule.tags || [],
+        recurringRuleId: rule.id,
+        isInternalSync: true
+      });
+      created++;
+    });
+    if (created > 0) {
+      triggerToast(`🔁 Created ${created} recurring ${created === 1 ? 'entry' : 'entries'} for ${monthYear}`);
+      this.notifyStoreUpdate();
+    }
+    return created;
+  }
+
+  getCreditCards(): CreditCard[] {
+    return Array.isArray(this.data.creditCards) ? this.data.creditCards : [];
+  }
+
+  addCreditCard(card: Partial<CreditCard>): CreditCard {
+    if (!Array.isArray(this.data.creditCards)) this.data.creditCards = [];
+    const newCard: CreditCard = {
+      id: card.id || ('card-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
+      name: card.name || 'Credit Card',
+      bank: card.bank || '',
+      limit: parsePositiveNumber(card.limit),
+      statementDay: clampNumber(parseInt(String(card.statementDay), 10) || 1, 1, 31),
+      dueDay: clampNumber(parseInt(String(card.dueDay), 10) || 1, 1, 31),
+      currentOutstanding: parseNonNegativeNumber(card.currentOutstanding),
+      notes: card.notes || ''
+    };
+    this.data.creditCards.push(newCard);
+    saveToCloud('creditCards', newCard.id, newCard);
+    this.save();
+    triggerToast(`💳 Card Saved: ${newCard.name}`);
+    this.notifyStoreUpdate();
+    return newCard;
+  }
+
+  editCreditCard(id: string, updatedCard: Partial<CreditCard>): CreditCard | null {
+    const card = this.getCreditCards().find(c => c.id === id);
+    if (!card) return null;
+    card.name = updatedCard.name !== undefined ? updatedCard.name : card.name;
+    card.bank = updatedCard.bank !== undefined ? updatedCard.bank : card.bank;
+    card.limit = updatedCard.limit !== undefined ? parsePositiveNumber(updatedCard.limit) : card.limit;
+    card.statementDay = updatedCard.statementDay !== undefined ? clampNumber(parseInt(String(updatedCard.statementDay), 10) || 1, 1, 31) : card.statementDay;
+    card.dueDay = updatedCard.dueDay !== undefined ? clampNumber(parseInt(String(updatedCard.dueDay), 10) || 1, 1, 31) : card.dueDay;
+    card.currentOutstanding = updatedCard.currentOutstanding !== undefined ? parseNonNegativeNumber(updatedCard.currentOutstanding) : card.currentOutstanding;
+    card.notes = updatedCard.notes !== undefined ? updatedCard.notes : card.notes;
+    saveToCloud('creditCards', card.id, card);
+    this.save();
+    this.notifyStoreUpdate();
+    return card;
+  }
+
+  deleteCreditCard(id: string): void {
+    this.data.creditCards = this.getCreditCards().filter(c => c.id !== id);
+    deleteFromCloud('creditCards', id);
+    this.save();
+    triggerToast('💳 Credit card deleted', 'warning');
+    this.notifyStoreUpdate();
+  }
+
+  getCreditCardSpend(cardId: string, monthYear: string | null = null): number {
+    return this.getTransactions(monthYear).filter(tx =>
+      tx.paymentMethod === 'Credit Card' && (!cardId || tx.linkedCreditCardId === cardId)
+    ).reduce((sum, tx) => sum + (parseFloat(String(tx.amount)) || 0), 0);
+  }
+
+  recordCreditCardPayment(cardId: string, amount: number, date: string = new Date().toISOString().split('T')[0]): void {
+    const card = this.getCreditCards().find(c => c.id === cardId);
+    if (!card) return;
+    const payAmount = parsePositiveNumber(amount);
+    card.currentOutstanding = Math.max(0, card.currentOutstanding - payAmount);
+    saveToCloud('creditCards', card.id, card);
+    this.addTransaction({
+      date,
+      title: `${card.name} Card Bill Payment`,
+      amount: payAmount,
+      category: 'Bills',
+      type: 'expense',
+      paymentMethod: 'NetBanking',
+      notes: `Credit card payment for ${card.bank}`,
+      isInternalSync: true
+    });
+    this.save();
+    this.notifyStoreUpdate();
+  }
+
+  getSavingsGoals(): SavingsGoal[] {
+    return Array.isArray(this.data.savingsGoals) ? this.data.savingsGoals : [];
+  }
+
+  addSavingsGoal(goal: Partial<SavingsGoal>): SavingsGoal {
+    if (!Array.isArray(this.data.savingsGoals)) this.data.savingsGoals = [];
+    const targetAmount = parsePositiveNumber(goal.targetAmount);
+    const currentAmount = Math.min(targetAmount, parseNonNegativeNumber(goal.currentAmount));
+    const newGoal: SavingsGoal = {
+      id: goal.id || ('goal-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
+      name: goal.name || 'Savings Goal',
+      targetAmount,
+      currentAmount,
+      targetDate: goal.targetDate || '',
+      monthlyContribution: parseNonNegativeNumber(goal.monthlyContribution),
+      notes: goal.notes || '',
+      status: currentAmount >= targetAmount && targetAmount > 0 ? 'completed' : 'active'
+    };
+    this.data.savingsGoals.push(newGoal);
+    saveToCloud('savingsGoals', newGoal.id, newGoal);
+    this.save();
+    triggerToast(`🎯 Goal Saved: ${newGoal.name}`);
+    this.notifyStoreUpdate();
+    return newGoal;
+  }
+
+  editSavingsGoal(id: string, updatedGoal: Partial<SavingsGoal>): SavingsGoal | null {
+    const goal = this.getSavingsGoals().find(g => g.id === id);
+    if (!goal) return null;
+    goal.name = updatedGoal.name !== undefined ? updatedGoal.name : goal.name;
+    goal.targetAmount = updatedGoal.targetAmount !== undefined ? parsePositiveNumber(updatedGoal.targetAmount) : goal.targetAmount;
+    goal.currentAmount = updatedGoal.currentAmount !== undefined ? Math.min(goal.targetAmount, parseNonNegativeNumber(updatedGoal.currentAmount)) : Math.min(goal.targetAmount, goal.currentAmount);
+    goal.targetDate = updatedGoal.targetDate !== undefined ? updatedGoal.targetDate : goal.targetDate;
+    goal.monthlyContribution = updatedGoal.monthlyContribution !== undefined ? parseNonNegativeNumber(updatedGoal.monthlyContribution) : goal.monthlyContribution;
+    goal.notes = updatedGoal.notes !== undefined ? updatedGoal.notes : goal.notes;
+    goal.status = goal.currentAmount >= goal.targetAmount && goal.targetAmount > 0 ? 'completed' : 'active';
+    saveToCloud('savingsGoals', goal.id, goal);
+    this.save();
+    this.notifyStoreUpdate();
+    return goal;
+  }
+
+  contributeToSavingsGoal(id: string, amount: number, date: string = new Date().toISOString().split('T')[0]): void {
+    const goal = this.getSavingsGoals().find(g => g.id === id);
+    if (!goal) return;
+    const contribution = parsePositiveNumber(amount);
+    goal.currentAmount = Math.min(goal.targetAmount, goal.currentAmount + contribution);
+    goal.status = goal.currentAmount >= goal.targetAmount ? 'completed' : 'active';
+    saveToCloud('savingsGoals', goal.id, goal);
+    this.addTransaction({
+      date,
+      title: `${goal.name} Savings Contribution`,
+      amount: contribution,
+      category: 'Investment',
+      type: 'investment',
+      paymentMethod: 'UPI',
+      notes: `Savings goal contribution`,
+      tags: ['goal', goal.name],
+      isInternalSync: true
+    });
+    this.save();
+    this.notifyStoreUpdate();
+  }
+
+  deleteSavingsGoal(id: string): void {
+    this.data.savingsGoals = this.getSavingsGoals().filter(g => g.id !== id);
+    deleteFromCloud('savingsGoals', id);
+    this.save();
+    triggerToast('🎯 Savings goal deleted', 'warning');
+    this.notifyStoreUpdate();
+  }
+
+  findDuplicateTransactions(candidate: Partial<Transaction>, tolerance: number = 1): Transaction[] {
+    const date = candidate.date || '';
+    const amount = parseFloat(String(candidate.amount || 0));
+    const title = String(candidate.title || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!date || !amount) return [];
+    return this.data.transactions.filter(tx => {
+      const sameDate = tx.date === date;
+      const sameAmount = Math.abs((parseFloat(String(tx.amount)) || 0) - amount) <= tolerance;
+      const txTitle = String(tx.title || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const similarTitle = title && txTitle && (txTitle.includes(title) || title.includes(txTitle));
+      return sameDate && sameAmount && similarTitle;
+    });
+  }
+
+  addSplitExpense(base: Partial<Transaction>, people: string[], paidBySelf: boolean = true): { transaction: Transaction; debts: DebtRecord[] } {
+    const cleanPeople = people.map(p => p.trim()).filter(Boolean);
+    const amount = parsePositiveNumber(base.amount);
+    const transaction = this.addTransaction({
+      ...base,
+      amount,
+      type: 'expense',
+      splitWith: cleanPeople,
+      notes: `${base.notes || ''} Split with: ${cleanPeople.join(', ')}`.trim()
+    });
+    const share = cleanPeople.length > 0 ? amount / (cleanPeople.length + (paidBySelf ? 1 : 0)) : 0;
+    const debts: DebtRecord[] = [];
+    if (share > 0 && paidBySelf) {
+      cleanPeople.forEach(person => {
+        debts.push(this.addDebt({
+          personName: person,
+          type: 'lent',
+          amount: Math.round(share * 100) / 100,
+          date: transaction.date,
+          notes: `Split expense: ${transaction.title}`
+        }));
+      });
+    }
+    return { transaction, debts };
+  }
+
+  getBillCalendarEvents(monthYear: string): BillCalendarEvent[] {
+    const events: BillCalendarEvent[] = [];
+    const [year, month] = monthYear.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const clampDay = (day: number) => String(clampNumber(day || 1, 1, daysInMonth)).padStart(2, '0');
+    this.getLoans().filter(l => l.status === 'Active' && l.monthlyEmi > 0).forEach(loan => {
+      const date = `${monthYear}-${clampDay(loan.emiDay)}`;
+      const paid = this.getTransactions(monthYear).some(tx => (tx.type === 'emi' || tx.category === 'EMI') && tx.title.toLowerCase().includes(loan.name.toLowerCase()));
+      events.push({ id: `loan-${loan.id}`, date, title: `${loan.name} EMI`, amount: loan.monthlyEmi, type: 'emi', status: paid ? 'paid' : 'due' });
+    });
+    this.getInvestments().filter(i => i.monthlySip > 0).forEach(inv => {
+      const date = `${monthYear}-10`;
+      const paid = this.getTransactions(monthYear).some(tx => tx.type === 'investment' && tx.title.toLowerCase().includes(inv.name.toLowerCase()));
+      events.push({ id: `sip-${inv.id}`, date, title: `${inv.name} SIP`, amount: inv.monthlySip, type: 'sip', status: paid ? 'paid' : 'due' });
+    });
+    this.getRecurringRules().filter(r => r.active).forEach(rule => {
+      const date = `${monthYear}-${clampDay(rule.dayOfMonth)}`;
+      events.push({ id: `rec-${rule.id}`, date, title: rule.title, amount: rule.amount, type: 'recurring', status: 'due' });
+    });
+    this.getCreditCards().forEach(card => {
+      const monthSpend = this.getCreditCardSpend(card.id, monthYear);
+      const amount = Math.max(card.currentOutstanding, monthSpend);
+      if (amount > 0) {
+        events.push({ id: `card-${card.id}`, date: `${monthYear}-${clampDay(card.dueDay)}`, title: `${card.name} Card Due`, amount, type: 'credit-card', status: 'due' });
+      }
+    });
+    this.getSalaryRecords().filter(s => s.monthYear === monthYear).forEach(sal => {
+      events.push({ id: `sal-${sal.id}`, date: sal.receivedDate || `${monthYear}-01`, title: `${sal.company} Salary`, amount: sal.netAmount, type: 'salary', status: sal.status === 'credited' ? 'paid' : 'pending' });
+    });
+    this.getDebts().filter(d => d.status !== 'settled' && d.dueDate && d.dueDate.startsWith(monthYear)).forEach(debt => {
+      events.push({ id: `debt-${debt.id}`, date: debt.dueDate || `${monthYear}-01`, title: `${debt.personName} Udhar Due`, amount: debt.amount - debt.settledAmount, type: 'debt', status: 'due' });
+    });
+    return events.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  getMonthlyInsights(monthYear: string): FinanceInsight[] {
+    const insights: FinanceInsight[] = [];
+    const metrics = this.getMonthlyMetrics(monthYear);
+    const [year, month] = monthYear.split('-').map(Number);
+    const prevDate = new Date(year, month - 2, 1);
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    const prev = this.getMonthlyMetrics(prevMonth);
+    const currency = this.data.currency || '₹';
+    const savingsRate = metrics.totalIncome > 0 ? Math.round((metrics.monthlyRemainingBalance / metrics.totalIncome) * 100) : 0;
+
+    if (metrics.totalIncome > 0) {
+      insights.push({
+        severity: savingsRate >= 20 ? 'good' : savingsRate >= 0 ? 'warning' : 'danger',
+        title: `Savings rate: ${savingsRate}%`,
+        detail: savingsRate >= 20 ? 'Strong savings pace this month.' : savingsRate >= 0 ? 'Savings are positive, but there is room to improve.' : 'Outflows are higher than income this month.'
+      });
+    }
+
+    if (prev.totalExpenses > 0 && metrics.totalExpenses > prev.totalExpenses * 1.15) {
+      const delta = Math.round(((metrics.totalExpenses - prev.totalExpenses) / prev.totalExpenses) * 100);
+      insights.push({ severity: 'warning', title: `Expenses up ${delta}%`, detail: `This month's daily expenses are higher than ${prevMonth}.` });
+    }
+
+    const txs = this.getTransactions(monthYear).filter(t => t.type === 'expense');
+    const byCat: Record<string, number> = {};
+    txs.forEach(tx => { byCat[tx.category] = (byCat[tx.category] || 0) + tx.amount; });
+    const topCat = Object.entries(byCat).sort((a, b) => b[1] - a[1])[0];
+    if (topCat) {
+      insights.push({ severity: 'info', title: `Top spend: ${topCat[0]}`, detail: `${currency}${Math.round(topCat[1]).toLocaleString('en-IN')} recorded in ${topCat[0]}.` });
+    }
+
+    Object.entries(this.getBudgets()).forEach(([cat, limit]) => {
+      const spent = byCat[cat] || 0;
+      if (limit > 0 && spent > limit) {
+        insights.push({ severity: 'danger', title: `${cat} budget crossed`, detail: `${currency}${Math.round(spent - limit).toLocaleString('en-IN')} over the planned limit.` });
+      } else if (limit > 0 && spent >= limit * 0.8) {
+        insights.push({ severity: 'warning', title: `${cat} budget near limit`, detail: `${Math.round((spent / limit) * 100)}% used already.` });
+      }
+    });
+
+    const cardRisk = this.getCreditCards().find(card => card.limit > 0 && (card.currentOutstanding + this.getCreditCardSpend(card.id, monthYear)) / card.limit >= 0.75);
+    if (cardRisk) {
+      insights.push({ severity: 'warning', title: `${cardRisk.name} usage is high`, detail: 'Outstanding plus this month card spends are above 75% of limit.' });
+    }
+
+    return insights.slice(0, 8);
   }
 
   getBudgets(): CategoryBudgets {
