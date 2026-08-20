@@ -6,6 +6,11 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
+async function openTab(page: any, tab: string, title: string): Promise<void> {
+  await page.locator(`.nav-item[data-tab="${tab}"]`).dispatchEvent('click');
+  await expect(page.locator('#currentTabTitle')).toHaveText(title);
+}
+
 test('manual hisab entry appears in ledger and dashboard', async ({ page }, testInfo) => {
   const title = `Playwright Grocery ${['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'][testInfo.workerIndex] || 'Omega'}`;
   await page.getByRole('button', { name: /\+ Manual Entry/ }).click();
@@ -17,8 +22,9 @@ test('manual hisab entry appears in ledger and dashboard', async ({ page }, test
   await page.locator('#txTags').fill('test, grocery');
   await page.locator('#txDate').fill('2026-08-20');
   await page.getByRole('button', { name: /Save Hisab Entry/ }).click();
+  await expect(page.locator('#txModal')).not.toHaveClass(/active/);
 
-  await page.locator('.nav-item[data-tab="hisab"]').click();
+  await openTab(page, 'hisab', 'Daily Hisab');
   await expect(page.locator('#hisabTableBody').getByText(title, { exact: true }).first()).toBeVisible();
   await page.locator('#hisabSearchInput').fill('grocery');
   await expect(page.locator('#hisabTableBody').getByText('#test').first()).toBeVisible();
@@ -26,7 +32,7 @@ test('manual hisab entry appears in ledger and dashboard', async ({ page }, test
 
 test('planner supports add and edit flows', async ({ page }, testInfo) => {
   const suffix = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'][testInfo.workerIndex] || 'Omega';
-  await page.locator('.nav-item[data-tab="planner"]').click();
+  await openTab(page, 'planner', 'Planner & Goals');
   await page.locator('#recTitle').fill(`Apartment Rent ${suffix}`);
   await page.locator('#recAmount').fill('18000');
   await page.locator('#recCategory').selectOption('Bills');
@@ -60,7 +66,7 @@ test('planner supports add and edit flows', async ({ page }, testInfo) => {
 test('dashboard and planner render on mobile viewport', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'mobile project only');
   await expect(page.locator('#currentTabTitle')).toHaveText('Dashboard');
-  await page.locator('.nav-item[data-tab="planner"]').click();
+  await openTab(page, 'planner', 'Planner & Goals');
   await expect(page.getByText('Smart Monthly Insights')).toBeVisible();
   await expect(page.locator('#contentContainer')).toBeVisible();
 });
