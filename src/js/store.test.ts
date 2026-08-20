@@ -272,6 +272,12 @@ assert.strictEqual(split.debts.length, 2);
 assert.ok(store.getBillCalendarEvents('2026-08').length > 0, 'Bill calendar has events');
 assert.ok(store.getMonthlyInsights('2026-08').length > 0, 'Monthly insights generated');
 store.recordCloudConflicts('transactions', [{ ...tx, amount: 999 }], [tx]);
+assert.strictEqual(store.getSyncConflicts().length, 0, 'Normal cloud merge differences do not create noisy conflicts');
+store.recordCloudConflicts(
+  'transactions',
+  [{ ...tx, amount: 999, updatedAt: '2026-08-20T10:00:00.000Z' }],
+  [{ ...tx, updatedAt: '2026-08-20T09:00:00.000Z' }]
+);
 assert.ok(store.getSyncConflicts().some(c => c.collection === 'transactions' && c.id === tx.id));
 store.clearSyncConflicts();
 assert.strictEqual(store.getSyncConflicts().length, 0);

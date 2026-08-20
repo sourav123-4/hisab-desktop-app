@@ -78,8 +78,8 @@ export function renderBudgetsView(container: HTMLElement, currentMonthYear: stri
       </div>
       <div style="margin-top: 12px; font-size: 12px; color: ${syncConflicts.length > 0 ? 'var(--accent-warning)' : 'var(--text-secondary)'};">
         ${syncConflicts.length > 0
-          ? `${syncConflicts.length} cloud conflict(s) detected. Latest cloud values were merged; review affected records: ${syncConflicts.slice(0, 4).map(c => `${c.collection}/${c.id}`).join(', ')}`
-          : 'No cloud conflicts detected in this session.'}
+          ? `${syncConflicts.length} same-record cloud edit conflict(s) detected. Repeated expenses like bus, tea, or food are allowed; these are only records with the same saved ID changed in two places. Latest cloud values were merged: ${syncConflicts.slice(0, 4).map(c => `${c.collection}/${c.id}`).join(', ')}`
+          : 'No same-record cloud edit conflicts detected. Repeated daily expenses are allowed.'}
       </div>
     </div>
 

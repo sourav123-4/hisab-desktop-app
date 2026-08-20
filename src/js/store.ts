@@ -429,6 +429,11 @@ class Store {
       if (!item || !item.id) return;
       const local = localById.get(item.id);
       if (!local) return;
+
+      const cloudUpdatedAt = item.updatedAt ? Date.parse(item.updatedAt) : 0;
+      const localUpdatedAt = local.updatedAt ? Date.parse(local.updatedAt) : 0;
+      if (!cloudUpdatedAt || !localUpdatedAt || cloudUpdatedAt === localUpdatedAt) return;
+
       const normalize = (value: any) => {
         const copy = { ...value };
         delete copy.updatedAt;
