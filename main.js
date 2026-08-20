@@ -5,6 +5,7 @@ import fs from 'fs';
 import http from 'http';
 import { fileURLToPath } from 'url';
 import { createHash, randomBytes } from 'crypto';
+import { autoUpdater } from 'electron-updater';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -158,6 +159,14 @@ let localServerUrl = null;
 let mainWindow = null;
 let appTray = null;
 let pendingGoogleOAuth = null;
+
+autoUpdater.autoDownload = false;
+
+function sendUpdateStatus(payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', payload);
+  }
+}
 
 function base64Url(buffer) {
   return Buffer.from(buffer)
@@ -618,6 +627,23 @@ ipcMain.handle('send-desktop-notification', async (event, { title, body }) => {
   return false;
 });
 
+ipcMain.handle('check-for-updates', async () => {
+  if (!app.isPackaged) {
+    return { success: false, status: 'development', message: 'Update checks run only in packaged builds.' };
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { success: true, status: 'checking', updateInfo: result?.updateInfo || null };
+  } catch (err) {
+    return { success: false, status: 'error', message: err.message || 'Update check failed.' };
+  }
+});
+
+autoUpdater.on('checking-for-update', () => sendUpdateStatus({ status: 'checking' }));
+autoUpdater.on('update-available', info => sendUpdateStatus({ status: 'available', info }));
+autoUpdater.on('update-not-available', info => sendUpdateStatus({ status: 'current', info }));
+autoUpdater.on('error', err => sendUpdateStatus({ status: 'error', message: err.message || 'Update error' }));
+
 app.whenReady().then(async () => {
   if (process.platform === 'darwin') {
     try {
@@ -636,6 +662,11 @@ app.whenReady().then(async () => {
   await startLocalServer();
   createWindow();
   createTray();
+  if (app.isPackaged) {
+    setTimeout(() => autoUpdater.checkForUpdates().catch(err => {
+      console.warn('Auto-update check failed:', err.message);
+    }), 5000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

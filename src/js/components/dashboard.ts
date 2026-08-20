@@ -1,6 +1,6 @@
 import { store } from '../store.js';
 import { renderExpenseCategoryChart, renderCashFlowBarChart, renderMomTrendChart } from '../charts.js';
-import { exportTransactionsCSV, printFinancialStatementPDF } from '../statementExporter.js';
+import { exportTransactionsCSV, exportMerchantCategoryReportCSV, exportYearlySummaryCSV, printFinancialStatementPDF } from '../statementExporter.js';
 import { renderCsvImporterModal } from './csvImporter.js';
 import { parseMultipleHisabs } from '../aiParser.js';
 import type { Transaction } from '../../types/index.js';
@@ -33,6 +33,12 @@ export function renderDashboardView(container: HTMLElement, currentMonthYear: st
         </button>
         <button class="btn btn-secondary btn-sm" id="dashExportCsvBtn">
           📊 Export CSV Statement
+        </button>
+        <button class="btn btn-secondary btn-sm" id="dashMerchantReportBtn">
+          🧾 Merchant Report
+        </button>
+        <button class="btn btn-secondary btn-sm" id="dashYearlyReportBtn">
+          📅 Yearly Report
         </button>
         <button class="btn btn-primary btn-sm" id="dashImportBankCsvBtn">
           📑 Import Bank CSV
@@ -164,6 +170,12 @@ export function renderDashboardView(container: HTMLElement, currentMonthYear: st
 
     const exportCsvBtn = container.querySelector('#dashExportCsvBtn') as HTMLElement | null;
     if (exportCsvBtn) exportCsvBtn.onclick = () => exportTransactionsCSV(currentMonthYear);
+
+    const merchantReportBtn = container.querySelector('#dashMerchantReportBtn') as HTMLElement | null;
+    if (merchantReportBtn) merchantReportBtn.onclick = () => exportMerchantCategoryReportCSV(currentMonthYear);
+
+    const yearlyReportBtn = container.querySelector('#dashYearlyReportBtn') as HTMLElement | null;
+    if (yearlyReportBtn) yearlyReportBtn.onclick = () => exportYearlySummaryCSV(currentMonthYear.substring(0, 4));
 
     const importBankBtn = container.querySelector('#dashImportBankCsvBtn') as HTMLElement | null;
     if (importBankBtn) importBankBtn.onclick = () => renderCsvImporterModal();

@@ -153,7 +153,28 @@ export function renderSettingsModal(): void {
             <button class="btn btn-secondary btn-sm" id="settingsImportBtn" style="font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 10px; gap: 6px;">
               <span>⬆️</span> Restore JSON Backup
             </button>
+            <button class="btn btn-secondary btn-sm" id="settingsEncryptedExportBtn" style="font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 10px; gap: 6px;">
+              <span>🔐</span> Export Encrypted
+            </button>
+            <button class="btn btn-secondary btn-sm" id="settingsEncryptedImportBtn" style="font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 10px; gap: 6px;">
+              <span>🔓</span> Restore Encrypted
+            </button>
             <input type="file" id="settingsImportFile" accept=".json" style="display: none;" />
+            <input type="file" id="settingsEncryptedImportFile" accept=".json" style="display: none;" />
+          </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px dashed var(--border-color); margin: 0;" />
+
+        <div>
+          <label style="font-weight: 700; font-size: 13.5px; color: var(--text-primary); display: block; margin-bottom: 10px;">
+            ⬆️ App Updates
+          </label>
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" id="settingsUpdateCheckBtn" style="font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 10px;">
+              Check for Updates
+            </button>
+            <span id="settingsUpdateStatus" style="font-size: 12px; color: var(--text-secondary);"></span>
           </div>
         </div>
 
@@ -252,6 +273,14 @@ export function renderSettingsModal(): void {
   const exportBtn = document.getElementById('settingsExportBtn');
   if (exportBtn) exportBtn.onclick = () => store.exportJSON();
 
+  const encryptedExportBtn = document.getElementById('settingsEncryptedExportBtn');
+  if (encryptedExportBtn) {
+    encryptedExportBtn.onclick = async () => {
+      const passphrase = prompt('Create a backup passphrase. You will need it to restore this file.');
+      if (passphrase) await store.exportEncryptedJSON(passphrase);
+    };
+  }
+
   const importBtn = document.getElementById('settingsImportBtn');
   const importFile = document.getElementById('settingsImportFile') as HTMLInputElement | null;
   if (importBtn && importFile) {
@@ -263,6 +292,48 @@ export function renderSettingsModal(): void {
         reader.onload = (event: any) => store.importJSON(event.target.result);
         reader.readAsText(file);
       }
+    };
+  }
+
+  const encryptedImportBtn = document.getElementById('settingsEncryptedImportBtn');
+  const encryptedImportFile = document.getElementById('settingsEncryptedImportFile') as HTMLInputElement | null;
+  if (encryptedImportBtn && encryptedImportFile) {
+    encryptedImportBtn.onclick = () => encryptedImportFile.click();
+    encryptedImportFile.onchange = (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const passphrase = prompt('Enter the backup passphrase.');
+      if (!passphrase) return;
+      const reader = new FileReader();
+      reader.onload = async (event: any) => {
+        await store.importEncryptedJSON(event.target.result, passphrase);
+      };
+      reader.readAsText(file);
+    };
+  }
+
+  const updateBtn = document.getElementById('settingsUpdateCheckBtn');
+  const updateStatus = document.getElementById('settingsUpdateStatus');
+  if (window.electronAPI?.onUpdateStatus && updateStatus) {
+    window.electronAPI.onUpdateStatus((data: any) => {
+      updateStatus.textContent = data.status === 'available'
+        ? 'Update available.'
+        : data.status === 'current'
+          ? 'You are on the latest version.'
+          : data.status === 'error'
+            ? `Update check failed: ${data.message || 'Unknown error'}`
+            : 'Checking for updates...';
+    });
+  }
+  if (updateBtn) {
+    updateBtn.onclick = async () => {
+      if (!window.electronAPI?.checkForUpdates) {
+        if (updateStatus) updateStatus.textContent = 'Update checks are available in the desktop app.';
+        return;
+      }
+      if (updateStatus) updateStatus.textContent = 'Checking for updates...';
+      const result = await window.electronAPI.checkForUpdates();
+      if (!result.success && updateStatus) updateStatus.textContent = result.message || 'Update check unavailable.';
     };
   }
 }

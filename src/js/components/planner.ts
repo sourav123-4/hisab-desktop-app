@@ -59,6 +59,7 @@ export function renderPlannerView(container: HTMLElement, currentMonthYear: stri
       <div class="card">
         <div class="card-header"><h3 class="card-title">Recurring Transactions</h3></div>
         <form id="recurringForm">
+          <input type="hidden" id="recEditId" value="">
           <div class="form-row">
             <div class="form-group"><label>Title</label><input class="form-control" id="recTitle" required placeholder="Rent, Netflix, SIP"></div>
             <div class="form-group"><label>Amount</label><input class="form-control" id="recAmount" type="number" min="0" step="any" required></div>
@@ -68,10 +69,14 @@ export function renderPlannerView(container: HTMLElement, currentMonthYear: stri
             <div class="form-group"><label>Type</label><select class="form-control" id="recType"><option value="expense">Expense</option><option value="investment">Investment</option><option value="emi">EMI</option><option value="income">Income</option></select></div>
           </div>
           <div class="form-row">
+            <div class="form-group"><label>Frequency</label><select class="form-control" id="recFrequency"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="yearly">Yearly</option></select></div>
             <div class="form-group"><label>Due Day</label><input class="form-control" id="recDay" type="number" min="1" max="31" value="1"></div>
-            <div class="form-group"><label>Tags</label><input class="form-control" id="recTags" placeholder="rent, fixed"></div>
           </div>
-          <div class="modal-actions" style="padding: 0; margin-top: 8px;"><button class="btn btn-primary" type="submit">Save Rule</button></div>
+          <div class="form-row">
+            <div class="form-group"><label>Tags</label><input class="form-control" id="recTags" placeholder="rent, fixed"></div>
+            <div class="form-group"><label>End Date</label><input class="form-control" id="recEndDate" type="date"></div>
+          </div>
+          <div class="modal-actions" style="padding: 0; margin-top: 8px;"><button class="btn btn-primary" id="recSaveBtn" type="submit">Save Rule</button></div>
         </form>
         <div style="margin-top: 16px;">${renderRecurringList(recurringRules, currency)}</div>
       </div>
@@ -79,6 +84,7 @@ export function renderPlannerView(container: HTMLElement, currentMonthYear: stri
       <div class="card">
         <div class="card-header"><h3 class="card-title">Credit Card Tracker</h3></div>
         <form id="cardForm">
+          <input type="hidden" id="cardEditId" value="">
           <div class="form-row">
             <div class="form-group"><label>Card Name</label><input class="form-control" id="cardName" required placeholder="HDFC Millennia"></div>
             <div class="form-group"><label>Bank</label><input class="form-control" id="cardBank" placeholder="HDFC"></div>
@@ -91,7 +97,7 @@ export function renderPlannerView(container: HTMLElement, currentMonthYear: stri
             <div class="form-group"><label>Statement Day</label><input class="form-control" id="cardStatementDay" type="number" min="1" max="31" value="1"></div>
             <div class="form-group"><label>Due Day</label><input class="form-control" id="cardDueDay" type="number" min="1" max="31" value="15"></div>
           </div>
-          <div class="modal-actions" style="padding: 0; margin-top: 8px;"><button class="btn btn-primary" type="submit">Save Card</button></div>
+          <div class="modal-actions" style="padding: 0; margin-top: 8px;"><button class="btn btn-primary" id="cardSaveBtn" type="submit">Save Card</button></div>
         </form>
         <div style="margin-top: 16px;">${renderCardList(cards, currentMonthYear, currency)}</div>
       </div>
@@ -101,6 +107,7 @@ export function renderPlannerView(container: HTMLElement, currentMonthYear: stri
       <div class="card">
         <div class="card-header"><h3 class="card-title">Savings Goals</h3></div>
         <form id="goalForm">
+          <input type="hidden" id="goalEditId" value="">
           <div class="form-row">
             <div class="form-group"><label>Goal Name</label><input class="form-control" id="goalName" required placeholder="Emergency Fund"></div>
             <div class="form-group"><label>Target Amount</label><input class="form-control" id="goalTarget" type="number" min="0" required></div>
@@ -113,7 +120,7 @@ export function renderPlannerView(container: HTMLElement, currentMonthYear: stri
             <div class="form-group"><label>Target Date</label><input class="form-control" id="goalDate" type="date"></div>
             <div class="form-group"><label>Notes</label><input class="form-control" id="goalNotes" placeholder="Optional"></div>
           </div>
-          <div class="modal-actions" style="padding: 0; margin-top: 8px;"><button class="btn btn-primary" type="submit">Save Goal</button></div>
+          <div class="modal-actions" style="padding: 0; margin-top: 8px;"><button class="btn btn-primary" id="goalSaveBtn" type="submit">Save Goal</button></div>
         </form>
         <div style="margin-top: 16px;">${renderGoalList(goals, currency)}</div>
       </div>
@@ -150,9 +157,10 @@ function renderRecurringList(rules: RecurringRule[], currency: string): string {
         <span class="metric-title">${escapeHTML(r.title)}</span>
         <span class="badge ${r.active ? 'badge-success' : 'badge-warning'}">${r.active ? 'active' : 'paused'}</span>
       </div>
-      <div class="metric-sub">${currency}${r.amount.toLocaleString('en-IN')} • ${escapeHTML(r.category)} • day ${r.dayOfMonth}</div>
+      <div class="metric-sub">${currency}${r.amount.toLocaleString('en-IN')} • ${escapeHTML(r.category)} • ${escapeHTML(r.frequency)} • day ${r.dayOfMonth}</div>
       <div style="display: flex; gap: 8px; margin-top: 10px;">
         <button class="btn btn-secondary btn-sm toggle-recurring-btn" data-id="${r.id}">${r.active ? 'Pause' : 'Resume'}</button>
+        <button class="btn btn-secondary btn-sm edit-recurring-btn" data-id="${r.id}">Edit</button>
         <button class="btn btn-secondary btn-sm delete-recurring-btn" data-id="${r.id}" style="color: var(--accent-danger);">Delete</button>
       </div>
     </div>
@@ -173,6 +181,7 @@ function renderCardList(cards: CreditCard[], monthYear: string, currency: string
         <div class="progress-bar-bg" style="margin-top: 8px;"><div class="progress-bar-fill" style="width: ${percent}%;"></div></div>
         <div style="display: flex; gap: 8px; margin-top: 10px;">
           <button class="btn btn-secondary btn-sm pay-card-btn" data-id="${card.id}">Record Payment</button>
+          <button class="btn btn-secondary btn-sm edit-card-btn" data-id="${card.id}">Edit</button>
           <button class="btn btn-secondary btn-sm delete-card-btn" data-id="${card.id}" style="color: var(--accent-danger);">Delete</button>
         </div>
       </div>
@@ -192,6 +201,7 @@ function renderGoalList(goals: SavingsGoal[], currency: string): string {
         <div class="progress-bar-bg" style="margin-top: 8px;"><div class="progress-bar-fill" style="width: ${percent}%; background: var(--grad-success);"></div></div>
         <div style="display: flex; gap: 8px; margin-top: 10px;">
           <button class="btn btn-secondary btn-sm contribute-goal-btn" data-id="${goal.id}">Add Contribution</button>
+          <button class="btn btn-secondary btn-sm edit-goal-btn" data-id="${goal.id}">Edit</button>
           <button class="btn btn-secondary btn-sm delete-goal-btn" data-id="${goal.id}" style="color: var(--accent-danger);">Delete</button>
         </div>
       </div>
@@ -202,50 +212,57 @@ function renderGoalList(goals: SavingsGoal[], currency: string): string {
 function attachPlannerListeners(container: HTMLElement, currentMonthYear: string): void {
   container.querySelector('#generateRecurringBtn')?.addEventListener('click', () => {
     store.generateDueRecurringTransactions(currentMonthYear);
-    renderPlannerView(container, currentMonthYear);
   });
 
   container.querySelector('#recurringForm')?.addEventListener('submit', (e: any) => {
     e.preventDefault();
-    store.addRecurringRule({
+    const editId = getInput('recEditId');
+    const existingRule = editId ? store.getRecurringRules().find(r => r.id === editId) : null;
+    const payload = {
       title: getInput('recTitle'),
       amount: getNumber('recAmount'),
       category: getInput('recCategory'),
       type: getInput('recType') as any,
       paymentMethod: 'Auto-Debit',
-      frequency: 'monthly',
+      frequency: getInput('recFrequency') as any,
       dayOfMonth: getNumber('recDay'),
       startDate: `${currentMonthYear}-01`,
+      endDate: getInput('recEndDate'),
       tags: splitCsv(getInput('recTags')),
-      active: true
-    });
-    renderPlannerView(container, currentMonthYear);
+      active: existingRule ? existingRule.active : true
+    };
+    if (editId) store.editRecurringRule(editId, payload);
+    else store.addRecurringRule(payload);
   });
 
   container.querySelector('#cardForm')?.addEventListener('submit', (e: any) => {
     e.preventDefault();
-    store.addCreditCard({
+    const editId = getInput('cardEditId');
+    const payload = {
       name: getInput('cardName'),
       bank: getInput('cardBank'),
       limit: getNumber('cardLimit'),
       currentOutstanding: getNumber('cardOutstanding'),
       statementDay: getNumber('cardStatementDay'),
       dueDay: getNumber('cardDueDay')
-    });
-    renderPlannerView(container, currentMonthYear);
+    };
+    if (editId) store.editCreditCard(editId, payload);
+    else store.addCreditCard(payload);
   });
 
   container.querySelector('#goalForm')?.addEventListener('submit', (e: any) => {
     e.preventDefault();
-    store.addSavingsGoal({
+    const editId = getInput('goalEditId');
+    const payload = {
       name: getInput('goalName'),
       targetAmount: getNumber('goalTarget'),
       currentAmount: getNumber('goalCurrent'),
       monthlyContribution: getNumber('goalMonthly'),
       targetDate: getInput('goalDate'),
       notes: getInput('goalNotes')
-    });
-    renderPlannerView(container, currentMonthYear);
+    };
+    if (editId) store.editSavingsGoal(editId, payload);
+    else store.addSavingsGoal(payload);
   });
 
   container.querySelector('#splitForm')?.addEventListener('submit', (e: any) => {
@@ -258,41 +275,75 @@ function attachPlannerListeners(container: HTMLElement, currentMonthYear: string
       date: getInput('splitDate'),
       notes: 'Created from split expense'
     }, splitCsv(getInput('splitPeople')), true);
-    renderPlannerView(container, currentMonthYear);
   });
 
   container.querySelectorAll('.toggle-recurring-btn').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.getAttribute('data-id') || '';
     const rule = store.getRecurringRules().find(r => r.id === id);
     if (rule) store.editRecurringRule(id, { active: !rule.active });
-    renderPlannerView(container, currentMonthYear);
+  }));
+  container.querySelectorAll('.edit-recurring-btn').forEach(btn => btn.addEventListener('click', () => {
+    const rule = store.getRecurringRules().find(r => r.id === (btn.getAttribute('data-id') || ''));
+    if (!rule) return;
+    setInput('recEditId', rule.id);
+    setInput('recTitle', rule.title);
+    setInput('recAmount', String(rule.amount));
+    setInput('recCategory', String(rule.category));
+    setInput('recType', rule.type);
+    setInput('recFrequency', rule.frequency);
+    setInput('recDay', String(rule.dayOfMonth));
+    setInput('recEndDate', rule.endDate || '');
+    setInput('recTags', (rule.tags || []).join(', '));
+    const saveBtn = document.getElementById('recSaveBtn');
+    if (saveBtn) saveBtn.textContent = 'Update Rule';
   }));
   container.querySelectorAll('.delete-recurring-btn').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.getAttribute('data-id') || '';
     if (id && confirm('Delete this recurring rule?')) store.deleteRecurringRule(id);
-    renderPlannerView(container, currentMonthYear);
   }));
   container.querySelectorAll('.pay-card-btn').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.getAttribute('data-id') || '';
     const amount = parseFloat(prompt('Payment amount?') || '0');
     if (id && amount > 0) store.recordCreditCardPayment(id, amount);
-    renderPlannerView(container, currentMonthYear);
+  }));
+  container.querySelectorAll('.edit-card-btn').forEach(btn => btn.addEventListener('click', () => {
+    const card = store.getCreditCards().find(c => c.id === (btn.getAttribute('data-id') || ''));
+    if (!card) return;
+    setInput('cardEditId', card.id);
+    setInput('cardName', card.name);
+    setInput('cardBank', card.bank);
+    setInput('cardLimit', String(card.limit));
+    setInput('cardOutstanding', String(card.currentOutstanding));
+    setInput('cardStatementDay', String(card.statementDay));
+    setInput('cardDueDay', String(card.dueDay));
+    const saveBtn = document.getElementById('cardSaveBtn');
+    if (saveBtn) saveBtn.textContent = 'Update Card';
   }));
   container.querySelectorAll('.delete-card-btn').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.getAttribute('data-id') || '';
     if (id && confirm('Delete this credit card?')) store.deleteCreditCard(id);
-    renderPlannerView(container, currentMonthYear);
   }));
   container.querySelectorAll('.contribute-goal-btn').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.getAttribute('data-id') || '';
     const amount = parseFloat(prompt('Contribution amount?') || '0');
     if (id && amount > 0) store.contributeToSavingsGoal(id, amount);
-    renderPlannerView(container, currentMonthYear);
+  }));
+  container.querySelectorAll('.edit-goal-btn').forEach(btn => btn.addEventListener('click', () => {
+    const goal = store.getSavingsGoals().find(g => g.id === (btn.getAttribute('data-id') || ''));
+    if (!goal) return;
+    setInput('goalEditId', goal.id);
+    setInput('goalName', goal.name);
+    setInput('goalTarget', String(goal.targetAmount));
+    setInput('goalCurrent', String(goal.currentAmount));
+    setInput('goalMonthly', String(goal.monthlyContribution));
+    setInput('goalDate', goal.targetDate || '');
+    setInput('goalNotes', goal.notes || '');
+    const saveBtn = document.getElementById('goalSaveBtn');
+    if (saveBtn) saveBtn.textContent = 'Update Goal';
   }));
   container.querySelectorAll('.delete-goal-btn').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.getAttribute('data-id') || '';
     if (id && confirm('Delete this savings goal?')) store.deleteSavingsGoal(id);
-    renderPlannerView(container, currentMonthYear);
   }));
 }
 
@@ -304,6 +355,11 @@ function getInput(id: string): string {
 function getNumber(id: string): number {
   const val = parseFloat(getInput(id));
   return Number.isFinite(val) && val > 0 ? val : 0;
+}
+
+function setInput(id: string, value: string): void {
+  const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
+  if (el) el.value = value;
 }
 
 function splitCsv(value: string): string[] {

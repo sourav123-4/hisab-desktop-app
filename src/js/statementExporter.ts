@@ -35,6 +35,61 @@ export function exportTransactionsCSV(monthYear: string | null = null): void {
   URL.revokeObjectURL(url);
 }
 
+export function exportYearlySummaryCSV(year: string = new Date().getFullYear().toString()): void {
+  const rows = [['Month', 'Income', 'Expenses', 'Investments', 'EMIs', 'Net Balance', 'Savings Rate %']];
+  for (let month = 1; month <= 12; month++) {
+    const monthYear = `${year}-${String(month).padStart(2, '0')}`;
+    const metrics = store.getMonthlyMetrics(monthYear);
+    const savingsRate = metrics.totalIncome > 0 ? Math.round((metrics.monthlyRemainingBalance / metrics.totalIncome) * 100) : 0;
+    rows.push([
+      monthYear,
+      String(metrics.totalIncome),
+      String(metrics.totalExpenses),
+      String(metrics.totalInvestments),
+      String(metrics.totalEmisPaid),
+      String(metrics.remainingBalance),
+      String(savingsRate)
+    ]);
+  }
+  downloadCsv(rows, `hisab_yearly_summary_${year}_${new Date().toISOString().split('T')[0]}.csv`);
+}
+
+export function exportMerchantCategoryReportCSV(monthYear: string | null = null): void {
+  const txs = store.getTransactions(monthYear);
+  if (!txs.length) {
+    alert('No transactions found to export.');
+    return;
+  }
+
+  const categoryTotals = new Map<string, number>();
+  const merchantTotals = new Map<string, number>();
+  txs.forEach(tx => {
+    const amount = parseFloat(String(tx.amount || 0)) || 0;
+    categoryTotals.set(tx.category, (categoryTotals.get(tx.category) || 0) + amount);
+    merchantTotals.set(tx.title, (merchantTotals.get(tx.title) || 0) + amount);
+  });
+
+  const rows = [['Section', 'Name', 'Total Amount']];
+  Array.from(categoryTotals.entries()).sort((a, b) => b[1] - a[1]).forEach(([name, total]) => {
+    rows.push(['Category', name, String(total)]);
+  });
+  Array.from(merchantTotals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 50).forEach(([name, total]) => {
+    rows.push(['Merchant', name, String(total)]);
+  });
+  downloadCsv(rows, `hisab_merchant_category_${monthYear || 'all'}_${new Date().toISOString().split('T')[0]}.csv`);
+}
+
+function downloadCsv(rows: string[][], filename: string): void {
+  const csvString = rows.map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function printFinancialStatementPDF(monthYear: string | null = null): void {
   const selectedMonth = monthYear || new Date().toISOString().substring(0, 7);
   const metrics = store.getMonthlyMetrics(selectedMonth);

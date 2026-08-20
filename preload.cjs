@@ -13,5 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onGoogleAuthSuccess: (callback) => ipcRenderer.on('google-auth-callback', (event, data) => callback(data)),
   sendDesktopNotification: (payload) => ipcRenderer.invoke('send-desktop-notification', payload),
   promptTouchID: () => ipcRenderer.invoke('prompt-touch-id'),
-  onOpenQuickAdd: (callback) => ipcRenderer.on('open-quick-add', () => callback())
+  onOpenQuickAdd: (callback) => ipcRenderer.on('open-quick-add', () => callback()),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  onUpdateStatus: (callback) => ipcRenderer.on('update-status', (event, data) => callback(data))
 });

@@ -1,4 +1,5 @@
 import { store } from '../store.js';
+import Papa from 'papaparse';
 import type { Transaction } from '../../types/index.js';
 
 export function renderCsvImporterModal(): void {
@@ -116,33 +117,17 @@ export function renderCsvImporterModal(): void {
   };
 
   const processCsvContent = (text: string) => {
-    const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-    if (lines.length < 2) {
+    const parsed = Papa.parse<string[]>(text, {
+      skipEmptyLines: true
+    });
+    const rows = parsed.data.filter(row => Array.isArray(row) && row.some(cell => String(cell || '').trim()));
+    if (rows.length < 2) {
       alert('CSV file is empty or invalid.');
       return;
     }
 
-    const parseLine = (line: string): string[] => {
-      const result: string[] = [];
-      let cur = '';
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          result.push(cur.trim());
-          cur = '';
-        } else {
-          cur += char;
-        }
-      }
-      result.push(cur.trim());
-      return result;
-    };
-
-    csvHeaders = parseLine(lines[0]);
-    csvRows = lines.slice(1).map(parseLine).filter(r => r.length === csvHeaders.length);
+    csvHeaders = rows[0].map(h => String(h || '').trim());
+    csvRows = rows.slice(1).map(row => row.map(cell => String(cell || '').trim())).filter(r => r.length >= csvHeaders.length);
 
     (document.getElementById('csvUploadStep') as HTMLElement).style.display = 'none';
     (document.getElementById('csvMappingStep') as HTMLElement).style.display = 'block';
@@ -174,7 +159,7 @@ export function renderCsvImporterModal(): void {
 
         if (amount > 0) {
           const isIncome = /credit|salary|refund|deposit/i.test(title) || parseFloat(rawAmount) > 0;
-          const entry = {
+          const entry: Partial<Transaction> = {
             date: sanitizeDate(rawDate),
             title: title,
             amount: amount,

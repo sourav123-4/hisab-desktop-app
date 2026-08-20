@@ -11,6 +11,7 @@
     "start": "electron .",
     "debug": "electron . --open-devtools",
     "test": "tsx src/js/store.test.ts",
+    "test:ui": "playwright test",
     "rephrase-entries": "tsx scripts/rephrase_entries.ts",
     "dist": "npm run build && electron-builder",
     "pack:mac": "npm run build && electron-builder --mac",
@@ -20,6 +21,13 @@
   "build": {
     "appId": "com.dailyhisab.app",
     "productName": "Daily Hisab",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "sourav123-4",
+        "repo": "hisab-desktop-app"
+      }
+    ],
     "directories": {
       "output": "release"
     },
@@ -29,7 +37,6 @@
       "google-auth.html",
       "preload.js",
       "preload.cjs",
-      ".env",
       "src/**/*",
       "assets/**/*",
       "package.json"
@@ -104,16 +111,20 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^26.2.0",
-    "electron": "^31.0.0",
+    "@types/papaparse": "^5.5.2",
+    "electron": "^43.4.1",
     "electron-builder": "^26.15.3",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
-    "vite": "^5.3.0"
+    "vite": "^8.2.2"
   },
   "dependencies": {
     "chart.js": "^4.4.3",
+    "electron-updater": "^6.8.9",
     "firebase": "^12.17.0",
-    "lucide": "^0.395.0"
+    "lucide": "^0.395.0",
+    "papaparse": "^5.6.0"
   }
 }

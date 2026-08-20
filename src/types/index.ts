@@ -182,6 +182,8 @@ declare global {
       sendDesktopNotification: (payload: { title: string; body: string }) => Promise<boolean>;
       promptTouchID: () => Promise<{ success: boolean; reason?: string }>;
       onOpenQuickAdd: (callback: () => void) => void;
+      checkForUpdates: () => Promise<{ success: boolean; status: string; message?: string; updateInfo?: any }>;
+      onUpdateStatus: (callback: (data: any) => void) => void;
     };
     SpeechRecognition?: any;
     webkitSpeechRecognition?: any;

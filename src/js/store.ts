@@ -77,10 +77,12 @@ class Store {
   public currentUserId: string;
   public activeUnsubscribers: Array<(() => void) | any>;
   public data: StoreData;
+  public syncConflicts: Array<{ collection: string; id: string; detectedAt: string }>;
 
   constructor() {
     this.currentUserId = this.getLastKnownUserId();
     this.activeUnsubscribers = [];
+    this.syncConflicts = [];
     this.data = this.load();
     this.initCloudSubscriptions();
   }
@@ -273,6 +275,7 @@ class Store {
 
     const unsubTx = subscribeToCloudCollection('transactions', (cloudTxs: Transaction[]) => {
       if (Array.isArray(cloudTxs)) {
+        this.recordCloudConflicts('transactions', cloudTxs, this.data.transactions || []);
         const prevJson = JSON.stringify(this.data.transactions);
         const mergedMap = new Map<string, Transaction>();
         (this.data.transactions || []).forEach(t => mergedMap.set(t.id, t));
@@ -289,6 +292,7 @@ class Store {
 
     const unsubSal = subscribeToCloudCollection('salary', (cloudSalary: SalaryRecord[]) => {
       if (Array.isArray(cloudSalary)) {
+        this.recordCloudConflicts('salary', cloudSalary, this.data.salary || []);
         const prevJson = JSON.stringify(this.data.salary);
         const mergedMap = new Map<string, SalaryRecord>();
         (this.data.salary || []).forEach(s => mergedMap.set(s.id, s));
@@ -304,6 +308,7 @@ class Store {
 
     const unsubLoan = subscribeToCloudCollection('loans', (cloudLoans: Loan[]) => {
       if (Array.isArray(cloudLoans)) {
+        this.recordCloudConflicts('loans', cloudLoans, this.data.loans || []);
         const prevJson = JSON.stringify(this.data.loans);
         const mergedMap = new Map<string, Loan>();
         (this.data.loans || []).forEach(l => mergedMap.set(l.id, l));
@@ -319,6 +324,7 @@ class Store {
 
     const unsubInv = subscribeToCloudCollection('investments', (cloudInvs: Investment[]) => {
       if (Array.isArray(cloudInvs)) {
+        this.recordCloudConflicts('investments', cloudInvs, this.data.investments || []);
         const prevJson = JSON.stringify(this.data.investments);
         const mergedMap = new Map<string, Investment>();
         (this.data.investments || []).forEach(i => mergedMap.set(i.id, i));
@@ -334,6 +340,7 @@ class Store {
 
     const unsubDebts = subscribeToCloudCollection('debts', (cloudDebts: DebtRecord[]) => {
       if (Array.isArray(cloudDebts)) {
+        this.recordCloudConflicts('debts', cloudDebts, this.data.debts || []);
         const prevJson = JSON.stringify(this.data.debts);
         const mergedMap = new Map<string, DebtRecord>();
         (this.data.debts || []).forEach(d => mergedMap.set(d.id, d));
@@ -349,6 +356,7 @@ class Store {
 
     const unsubRecurring = subscribeToCloudCollection('recurringRules', (cloudRules: RecurringRule[]) => {
       if (Array.isArray(cloudRules)) {
+        this.recordCloudConflicts('recurringRules', cloudRules, this.data.recurringRules || []);
         const prevJson = JSON.stringify(this.data.recurringRules);
         const mergedMap = new Map<string, RecurringRule>();
         (this.data.recurringRules || []).forEach(r => mergedMap.set(r.id, r));
@@ -364,6 +372,7 @@ class Store {
 
     const unsubCards = subscribeToCloudCollection('creditCards', (cloudCards: CreditCard[]) => {
       if (Array.isArray(cloudCards)) {
+        this.recordCloudConflicts('creditCards', cloudCards, this.data.creditCards || []);
         const prevJson = JSON.stringify(this.data.creditCards);
         const mergedMap = new Map<string, CreditCard>();
         (this.data.creditCards || []).forEach(c => mergedMap.set(c.id, c));
@@ -379,6 +388,7 @@ class Store {
 
     const unsubGoals = subscribeToCloudCollection('savingsGoals', (cloudGoals: SavingsGoal[]) => {
       if (Array.isArray(cloudGoals)) {
+        this.recordCloudConflicts('savingsGoals', cloudGoals, this.data.savingsGoals || []);
         const prevJson = JSON.stringify(this.data.savingsGoals);
         const mergedMap = new Map<string, SavingsGoal>();
         (this.data.savingsGoals || []).forEach(g => mergedMap.set(g.id, g));
@@ -408,6 +418,39 @@ class Store {
     });
 
     this.activeUnsubscribers.push(unsubTx, unsubSal, unsubLoan, unsubInv, unsubDebts, unsubRecurring, unsubCards, unsubGoals, unsubSet);
+  }
+
+  recordCloudConflicts(collectionName: string, cloudItems: any[], localItems: any[]): void {
+    const localById = new Map<string, any>();
+    localItems.forEach(item => {
+      if (item && item.id) localById.set(item.id, item);
+    });
+    cloudItems.forEach(item => {
+      if (!item || !item.id) return;
+      const local = localById.get(item.id);
+      if (!local) return;
+      const normalize = (value: any) => {
+        const copy = { ...value };
+        delete copy.updatedAt;
+        delete copy.userId;
+        return JSON.stringify(copy);
+      };
+      if (normalize(local) !== normalize(item)) {
+        const alreadyTracked = this.syncConflicts.some(c => c.collection === collectionName && c.id === item.id);
+        if (!alreadyTracked) {
+          this.syncConflicts.push({ collection: collectionName, id: item.id, detectedAt: new Date().toISOString() });
+        }
+      }
+    });
+  }
+
+  getSyncConflicts(): Array<{ collection: string; id: string; detectedAt: string }> {
+    return [...this.syncConflicts];
+  }
+
+  clearSyncConflicts(): void {
+    this.syncConflicts = [];
+    this.notifyStoreUpdate();
   }
 
   sanitizeData(parsed: any): StoreData {
@@ -1215,25 +1258,42 @@ class Store {
     const daysInMonth = new Date(year, month, 0).getDate();
     let created = 0;
     rules.forEach(rule => {
-      if (rule.frequency !== 'monthly') return;
-      const date = `${monthYear}-${String(clampNumber(rule.dayOfMonth || 1, 1, daysInMonth)).padStart(2, '0')}`;
-      if (rule.startDate && date < rule.startDate) return;
-      if (rule.endDate && date > rule.endDate) return;
-      const exists = this.data.transactions.some(tx => tx.recurringRuleId === rule.id && tx.date && tx.date.startsWith(monthYear));
-      if (exists) return;
-      this.addTransaction({
-        title: rule.title,
-        amount: rule.amount,
-        category: rule.category,
-        type: rule.type,
-        paymentMethod: rule.paymentMethod,
-        date,
-        notes: rule.notes || `Auto-created from recurring rule`,
-        tags: rule.tags || [],
-        recurringRuleId: rule.id,
-        isInternalSync: true
+      const dueDates: string[] = [];
+      if (rule.frequency === 'weekly') {
+        const first = new Date(year, month - 1, 1);
+        const preferredDay = clampNumber(rule.dayOfMonth || 1, 1, 7) - 1;
+        const offset = (preferredDay - first.getDay() + 7) % 7;
+        for (let day = 1 + offset; day <= daysInMonth; day += 7) {
+          dueDates.push(`${monthYear}-${String(day).padStart(2, '0')}`);
+        }
+      } else if (rule.frequency === 'yearly') {
+        const startMonth = rule.startDate && /^\d{4}-\d{2}/.test(rule.startDate) ? rule.startDate.substring(5, 7) : String(month).padStart(2, '0');
+        if (startMonth === String(month).padStart(2, '0')) {
+          dueDates.push(`${monthYear}-${String(clampNumber(rule.dayOfMonth || 1, 1, daysInMonth)).padStart(2, '0')}`);
+        }
+      } else {
+        dueDates.push(`${monthYear}-${String(clampNumber(rule.dayOfMonth || 1, 1, daysInMonth)).padStart(2, '0')}`);
+      }
+
+      dueDates.forEach(date => {
+        if (rule.startDate && date < rule.startDate) return;
+        if (rule.endDate && date > rule.endDate) return;
+        const exists = this.data.transactions.some(tx => tx.recurringRuleId === rule.id && tx.date === date);
+        if (exists) return;
+        this.addTransaction({
+          title: rule.title,
+          amount: rule.amount,
+          category: rule.category,
+          type: rule.type,
+          paymentMethod: rule.paymentMethod,
+          date,
+          notes: rule.notes || `Auto-created from recurring rule`,
+          tags: rule.tags || [],
+          recurringRuleId: rule.id,
+          isInternalSync: true
+        });
+        created++;
       });
-      created++;
     });
     if (created > 0) {
       triggerToast(`🔁 Created ${created} recurring ${created === 1 ? 'entry' : 'entries'} for ${monthYear}`);
@@ -1444,8 +1504,24 @@ class Store {
       events.push({ id: `sip-${inv.id}`, date, title: `${inv.name} SIP`, amount: inv.monthlySip, type: 'sip', status: paid ? 'paid' : 'due' });
     });
     this.getRecurringRules().filter(r => r.active).forEach(rule => {
-      const date = `${monthYear}-${clampDay(rule.dayOfMonth)}`;
-      events.push({ id: `rec-${rule.id}`, date, title: rule.title, amount: rule.amount, type: 'recurring', status: 'due' });
+      if (rule.frequency === 'weekly') {
+        const first = new Date(year, month - 1, 1);
+        const preferredDay = clampNumber(rule.dayOfMonth || 1, 1, 7) - 1;
+        const offset = (preferredDay - first.getDay() + 7) % 7;
+        for (let day = 1 + offset; day <= daysInMonth; day += 7) {
+          const date = `${monthYear}-${String(day).padStart(2, '0')}`;
+          events.push({ id: `rec-${rule.id}-${day}`, date, title: rule.title, amount: rule.amount, type: 'recurring', status: 'due' });
+        }
+      } else if (rule.frequency === 'yearly') {
+        const startMonth = rule.startDate && /^\d{4}-\d{2}/.test(rule.startDate) ? rule.startDate.substring(5, 7) : String(month).padStart(2, '0');
+        if (startMonth === String(month).padStart(2, '0')) {
+          const date = `${monthYear}-${clampDay(rule.dayOfMonth)}`;
+          events.push({ id: `rec-${rule.id}`, date, title: rule.title, amount: rule.amount, type: 'recurring', status: 'due' });
+        }
+      } else {
+        const date = `${monthYear}-${clampDay(rule.dayOfMonth)}`;
+        events.push({ id: `rec-${rule.id}`, date, title: rule.title, amount: rule.amount, type: 'recurring', status: 'due' });
+      }
     });
     this.getCreditCards().forEach(card => {
       const monthSpend = this.getCreditCardSpend(card.id, monthYear);
@@ -1614,6 +1690,82 @@ class Store {
     URL.revokeObjectURL(url);
   }
 
+  async exportEncryptedJSON(passphrase: string): Promise<boolean> {
+    if (!passphrase || passphrase.length < 6) {
+      alert('Use a passphrase with at least 6 characters.');
+      return false;
+    }
+    try {
+      const cryptoObj = globalThis.crypto;
+      if (!cryptoObj?.subtle) throw new Error('Encrypted backups are not supported in this environment.');
+      const encoded = new TextEncoder().encode(JSON.stringify(this.data));
+      const salt = cryptoObj.getRandomValues(new Uint8Array(16));
+      const iv = cryptoObj.getRandomValues(new Uint8Array(12));
+      const saltBuffer = salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer;
+      const ivBuffer = iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer;
+      const keyMaterial = await cryptoObj.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+      const key = await cryptoObj.subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBuffer, iterations: 120000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt']
+      );
+      const cipher = await cryptoObj.subtle.encrypt({ name: 'AES-GCM', iv: ivBuffer }, key, encoded);
+      const payload = {
+        format: 'daily-hisab-encrypted-backup',
+        version: 1,
+        kdf: 'PBKDF2-SHA256',
+        iterations: 120000,
+        salt: bytesToBase64(salt),
+        iv: bytesToBase64(iv),
+        data: bytesToBase64(new Uint8Array(cipher))
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hisabkit_encrypted_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return true;
+    } catch (e: any) {
+      alert(e.message || 'Could not create encrypted backup.');
+      return false;
+    }
+  }
+
+  async importEncryptedJSON(jsonString: string, passphrase: string): Promise<boolean> {
+    try {
+      const payload = JSON.parse(jsonString);
+      if (!payload || payload.format !== 'daily-hisab-encrypted-backup') {
+        alert('Invalid encrypted backup format.');
+        return false;
+      }
+      const cryptoObj = globalThis.crypto;
+      if (!cryptoObj?.subtle) throw new Error('Encrypted backups are not supported in this environment.');
+      const salt = base64ToBytes(payload.salt);
+      const iv = base64ToBytes(payload.iv);
+      const cipher = base64ToBytes(payload.data);
+      const saltBuffer = salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer;
+      const ivBuffer = iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer;
+      const cipherBuffer = cipher.buffer.slice(cipher.byteOffset, cipher.byteOffset + cipher.byteLength) as ArrayBuffer;
+      const keyMaterial = await cryptoObj.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+      const key = await cryptoObj.subtle.deriveKey(
+        { name: 'PBKDF2', salt: saltBuffer, iterations: payload.iterations || 120000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+      const plain = await cryptoObj.subtle.decrypt({ name: 'AES-GCM', iv: ivBuffer }, key, cipherBuffer);
+      return this.importJSON(new TextDecoder().decode(plain));
+    } catch (e) {
+      alert('Could not decrypt backup. Check the passphrase and file.');
+      return false;
+    }
+  }
+
   importJSON(jsonString: string): boolean {
     try {
       const parsed = JSON.parse(jsonString);
@@ -1627,6 +1779,23 @@ class Store {
     }
     return false;
   }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  if (typeof btoa === 'function') {
+    let binary = '';
+    bytes.forEach(b => { binary += String.fromCharCode(b); });
+    return btoa(binary);
+  }
+  return Buffer.from(bytes).toString('base64');
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  if (typeof atob === 'function') {
+    const binary = atob(value);
+    return Uint8Array.from(binary, ch => ch.charCodeAt(0));
+  }
+  return Uint8Array.from(Buffer.from(value, 'base64'));
 }
 
 export const store = new Store();

@@ -5,6 +5,7 @@ export function renderBudgetsView(container: HTMLElement, currentMonthYear: stri
   const budgets = store.getBudgets();
   const txs = store.getTransactions(currentMonthYear);
   const currency = store.data.currency || '₹';
+  const syncConflicts = store.getSyncConflicts();
 
   const categorySpent: Record<string, number> = {};
   txs.filter(t => t.type === 'expense').forEach((t: Transaction) => {
@@ -71,6 +72,14 @@ export function renderBudgetsView(container: HTMLElement, currentMonthYear: stri
         <button class="btn btn-secondary" id="manualCloudSyncBtn">
           ⚡ Force Real-Time Cloud Sync
         </button>
+        <button class="btn btn-secondary" id="clearSyncConflictsBtn" ${syncConflicts.length === 0 ? 'disabled' : ''}>
+          Clear Conflict Log
+        </button>
+      </div>
+      <div style="margin-top: 12px; font-size: 12px; color: ${syncConflicts.length > 0 ? 'var(--accent-warning)' : 'var(--text-secondary)'};">
+        ${syncConflicts.length > 0
+          ? `${syncConflicts.length} cloud conflict(s) detected. Latest cloud values were merged; review affected records: ${syncConflicts.slice(0, 4).map(c => `${c.collection}/${c.id}`).join(', ')}`
+          : 'No cloud conflicts detected in this session.'}
       </div>
     </div>
 
@@ -108,6 +117,11 @@ export function renderBudgetsView(container: HTMLElement, currentMonthYear: stri
       btn.textContent = '⚠️ Cloud Sync Offline (Saved Locally)';
       setTimeout(() => { btn.textContent = '⚡ Force Real-Time Cloud Sync'; }, 3000);
     }
+  });
+
+  container.querySelector('#clearSyncConflictsBtn')?.addEventListener('click', () => {
+    store.clearSyncConflicts();
+    renderBudgetsView(container, currentMonthYear);
   });
 
   container.querySelectorAll('.save-budget-btn').forEach(btn => {

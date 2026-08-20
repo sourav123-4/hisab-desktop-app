@@ -185,6 +185,19 @@ assert.strictEqual(store.generateDueRecurringTransactions('2026-08'), 0, 'Recurr
 assert.ok(store.getTransactions('2026-08').some(t => t.recurringRuleId === recurring.id && t.title === 'Monthly Rent'));
 store.editRecurringRule(recurring.id, { active: false });
 assert.strictEqual(store.getRecurringRules().find(r => r.id === recurring.id)?.active, false);
+const weeklyRule = store.addRecurringRule({
+  title: 'Weekly Grocery Envelope',
+  amount: 1000,
+  category: 'Food',
+  type: 'expense',
+  paymentMethod: 'UPI',
+  frequency: 'weekly',
+  dayOfMonth: 2,
+  startDate: '2026-08-01'
+});
+const weeklyCreated = store.generateDueRecurringTransactions('2026-08');
+assert.ok(weeklyCreated >= 4, 'Weekly recurring creates multiple entries in month');
+assert.strictEqual(store.generateDueRecurringTransactions('2026-08'), 0, 'Weekly recurring is idempotent per date');
 console.log('✅ Test 11 Passed: Recurring Transaction Rules');
 
 // Test 12: Credit Cards
@@ -258,6 +271,10 @@ const split = store.addSplitExpense({
 assert.strictEqual(split.debts.length, 2);
 assert.ok(store.getBillCalendarEvents('2026-08').length > 0, 'Bill calendar has events');
 assert.ok(store.getMonthlyInsights('2026-08').length > 0, 'Monthly insights generated');
+store.recordCloudConflicts('transactions', [{ ...tx, amount: 999 }], [tx]);
+assert.ok(store.getSyncConflicts().some(c => c.collection === 'transactions' && c.id === tx.id));
+store.clearSyncConflicts();
+assert.strictEqual(store.getSyncConflicts().length, 0);
 console.log('✅ Test 16 Passed: Duplicate Detection, Split Expense, Calendar & Insights');
 
 // Test 17: Title Cleaning & Category Categorization (Food, Shopping, Transport, Invest, Borrow)
@@ -335,6 +352,8 @@ store.deleteDebt(debt.id);
 assert.strictEqual(store.getDebts().filter(d => d.id === debt.id).length, 0);
 store.deleteRecurringRule(recurring.id);
 assert.strictEqual(store.getRecurringRules().filter(r => r.id === recurring.id).length, 0);
+store.deleteRecurringRule(weeklyRule.id);
+assert.strictEqual(store.getRecurringRules().filter(r => r.id === weeklyRule.id).length, 0);
 store.deleteCreditCard(card.id);
 assert.strictEqual(store.getCreditCards().filter(c => c.id === card.id).length, 0);
 store.deleteSavingsGoal(goal.id);

@@ -194,7 +194,7 @@ function startApp() {
       document.documentElement.setAttribute('data-theme', store.getTheme());
       renderCurrentTab();
       checkAndTriggerDesktopAlerts();
-    }, 50);
+    }, 150);
   };
 
   document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
@@ -682,6 +682,7 @@ function showToast(message: string, type: string = 'success') {
   toast.style.fontWeight = '700';
   toast.style.padding = '14px 22px';
   toast.style.borderRadius = '16px';
+  toast.style.pointerEvents = 'none';
 
   toast.innerHTML = message;
   document.body.appendChild(toast);
