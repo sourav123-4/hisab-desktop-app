@@ -173,7 +173,7 @@ declare global {
       appVersion: string;
       platform: string;
       isElectron: boolean;
-      getVoiceTranscriptionStatus: () => Promise<{ configured: boolean }>;
+      getVoiceTranscriptionStatus: () => Promise<{ configured: boolean; source?: 'saved' | 'managed' | 'missing' }>;
       saveVoiceTranscriptionKey: (apiKey: string) => Promise<{ success: boolean; message?: string }>;
       clearVoiceTranscriptionKey: () => Promise<{ success: boolean; message?: string }>;
       transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType: string) => Promise<{ success: boolean; text?: string; error?: string; code?: string }>;

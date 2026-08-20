@@ -74,6 +74,101 @@ test('voice modal exposes recording without provider key errors', async ({ page 
   await expect(page.locator('#voicePreviewItems')).toContainText('Found 2 Hisab Entries');
 });
 
+test('settings shows managed Groq voice key as ready', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as any).electronAPI = {
+      getVoiceTranscriptionStatus: async () => ({ configured: true, source: 'managed' })
+    };
+  });
+
+  await page.reload();
+  await page.locator('#themeToggleBtn').dispatchEvent('click');
+  await expect(page.locator('#voiceKeyStatusText')).toContainText('managed Groq key');
+});
+
+test('voice recording sends audio for transcription and fills parsed transcript', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as any).__transcribeCalls = [];
+    (window as any).electronAPI = {
+      getVoiceTranscriptionStatus: async () => ({ configured: true }),
+      transcribeAudio: async (arrayBuffer: ArrayBuffer, mimeType: string) => {
+        (window as any).__transcribeCalls.push({ bytes: arrayBuffer.byteLength, mimeType });
+        return { success: true, text: '350 petrol, 500 groceries via UPI' };
+      }
+    };
+
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop: () => {} }]
+        })
+      }
+    });
+
+    class MockMediaRecorder {
+      static isTypeSupported() {
+        return true;
+      }
+
+      public state = 'inactive';
+      public mimeType: string;
+      public ondataavailable?: (event: { data: Blob }) => void;
+      public onstop?: () => void;
+
+      constructor(stream: MediaStream, options?: MediaRecorderOptions) {
+        this.mimeType = options?.mimeType || 'audio/webm';
+      }
+
+      start() {
+        this.state = 'recording';
+      }
+
+      stop() {
+        this.state = 'inactive';
+        const payload = new Uint8Array(3000).fill(7);
+        this.ondataavailable?.({ data: new Blob([payload], { type: this.mimeType }) });
+        setTimeout(() => this.onstop?.(), 0);
+      }
+    }
+
+    class MockAudioContext {
+      createMediaStreamSource() {
+        return { connect: () => {} };
+      }
+
+      createAnalyser() {
+        return {
+          fftSize: 64,
+          frequencyBinCount: 32,
+          getByteFrequencyData: (arr: Uint8Array) => arr.fill(1)
+        };
+      }
+
+      close() {
+        return Promise.resolve();
+      }
+    }
+
+    (window as any).MediaRecorder = MockMediaRecorder;
+    (window as any).AudioContext = MockAudioContext;
+  });
+
+  await page.reload();
+  await page.locator('#aiVoiceBtn').click();
+  await page.locator('#toggleRecordBtn').click();
+  await expect(page.locator('#toggleRecordBtn')).toContainText('Stop & Transcribe');
+  await page.locator('#toggleRecordBtn').click();
+
+  await expect(page.locator('#voiceTranscriptInput')).toHaveValue('350 petrol, 500 groceries via UPI');
+  await expect(page.locator('#voicePreviewItems')).toContainText('Found 2 Hisab Entries');
+
+  const calls = await page.evaluate(() => (window as any).__transcribeCalls);
+  expect(calls).toHaveLength(1);
+  expect(calls[0].bytes).toBeGreaterThan(1200);
+  expect(calls[0].mimeType).toContain('audio/');
+});
+
 test('dashboard and planner render on mobile viewport', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'mobile project only');
   await expect(page.locator('#currentTabTitle')).toHaveText('Dashboard');

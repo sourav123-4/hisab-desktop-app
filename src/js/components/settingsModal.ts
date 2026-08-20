@@ -146,9 +146,9 @@ export function renderSettingsModal(): void {
           <label style="font-weight: 700; font-size: 13.5px; color: var(--text-primary); display: block; margin-bottom: 8px;">
             🎙️ Voice Recording Transcription
           </label>
-          <span style="font-size: 11.5px; color: var(--text-secondary); display: block; margin-bottom: 10px;">Save your transcription key locally to enable record-and-convert voice entries.</span>
+          <span style="font-size: 11.5px; color: var(--text-secondary); display: block; margin-bottom: 10px;">Use the managed Groq key, or save a local Groq key to enable record-and-convert voice entries.</span>
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-            <input type="password" id="voiceTranscriptionKeyInput" class="form-control" placeholder="Paste transcription API key" autocomplete="off" style="flex: 1; min-width: 220px; font-size: 12px;" />
+            <input type="password" id="voiceTranscriptionKeyInput" class="form-control" placeholder="Paste Groq API key" autocomplete="off" style="flex: 1; min-width: 220px; font-size: 12px;" />
             <button class="btn btn-primary btn-sm" id="saveVoiceKeyBtn" style="font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 10px;">Save Key</button>
             <button class="btn btn-secondary btn-sm" id="clearVoiceKeyBtn" style="font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 10px;">Clear</button>
           </div>
@@ -299,8 +299,10 @@ export function renderSettingsModal(): void {
     }
     const status = await window.electronAPI.getVoiceTranscriptionStatus();
     voiceKeyStatusText.textContent = status.configured
-      ? 'Voice recording is ready.'
-      : 'Voice recording needs a saved transcription key.';
+      ? status.source === 'managed'
+        ? 'Voice recording is ready with the managed Groq key.'
+        : 'Voice recording is ready.'
+      : 'Voice recording needs a Groq key.';
   };
   refreshVoiceKeyStatus();
 
@@ -308,7 +310,7 @@ export function renderSettingsModal(): void {
     saveVoiceKeyBtn.onclick = async () => {
       const key = voiceKeyInput.value.trim();
       if (!key) {
-        if (voiceKeyStatusText) voiceKeyStatusText.textContent = 'Paste a transcription key first.';
+        if (voiceKeyStatusText) voiceKeyStatusText.textContent = 'Paste a Groq key first.';
         return;
       }
       const result = await window.electronAPI?.saveVoiceTranscriptionKey?.(key);
@@ -316,7 +318,7 @@ export function renderSettingsModal(): void {
         voiceKeyInput.value = '';
         if (voiceKeyStatusText) voiceKeyStatusText.textContent = 'Voice recording is ready.';
       } else if (voiceKeyStatusText) {
-        voiceKeyStatusText.textContent = result?.message || 'Could not save voice transcription key.';
+        voiceKeyStatusText.textContent = result?.message || 'Could not save Groq key.';
       }
     };
   }
@@ -326,8 +328,8 @@ export function renderSettingsModal(): void {
       const result = await window.electronAPI?.clearVoiceTranscriptionKey?.();
       if (voiceKeyStatusText) {
         voiceKeyStatusText.textContent = result?.success
-          ? 'Voice transcription key cleared.'
-          : result?.message || 'Could not clear voice transcription key.';
+          ? 'Local Groq key cleared.'
+          : result?.message || 'Could not clear Groq key.';
       }
     };
   }

@@ -406,7 +406,7 @@ async function startAudioRecording() {
     if (!status?.configured) {
       if (statusText) {
         statusText.style.color = 'var(--accent-warning)';
-        statusText.textContent = 'Voice recording needs setup. Add your transcription key in Settings.';
+        statusText.textContent = 'Voice recording needs setup. Add your Groq key in Settings.';
       }
       return;
     }

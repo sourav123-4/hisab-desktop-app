@@ -46,6 +46,21 @@ function getVoiceConfigPath() {
   return path.join(app.getPath('userData'), 'voice-transcription.json');
 }
 
+const managedVoiceKeyEnvNames = [
+  'HISAB_GROQ_API_KEY',
+  'GROQ_API_KEY',
+  'VITE_GROQ_API_KEY',
+  'VOICE_TRANSCRIPTION_API_KEY'
+];
+
+function readManagedVoiceTranscriptionKey() {
+  for (const name of managedVoiceKeyEnvNames) {
+    const value = String(process.env[name] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
 function encryptSecret(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -80,7 +95,7 @@ function decryptSecret(payload) {
   return '';
 }
 
-function readVoiceTranscriptionKey() {
+function readSavedVoiceTranscriptionKey() {
   try {
     const configPath = getVoiceConfigPath();
     if (!fs.existsSync(configPath)) return '';
@@ -92,14 +107,25 @@ function readVoiceTranscriptionKey() {
   }
 }
 
+function readVoiceTranscriptionConfig() {
+  const savedKey = readSavedVoiceTranscriptionKey();
+  if (savedKey) return { apiKey: savedKey, source: 'saved' };
+
+  const managedKey = readManagedVoiceTranscriptionKey();
+  if (managedKey) return { apiKey: managedKey, source: 'managed' };
+
+  return { apiKey: '', source: 'missing' };
+}
+
 ipcMain.handle('get-voice-transcription-status', async () => {
-  return { configured: Boolean(readVoiceTranscriptionKey()) };
+  const config = readVoiceTranscriptionConfig();
+  return { configured: Boolean(config.apiKey), source: config.source };
 });
 
 ipcMain.handle('save-voice-transcription-key', async (event, apiKey) => {
   const encrypted = encryptSecret(apiKey);
   if (!encrypted) {
-    return { success: false, message: 'Enter a valid transcription key.' };
+    return { success: false, message: 'Enter a valid Groq key.' };
   }
 
   try {
@@ -112,7 +138,7 @@ ipcMain.handle('save-voice-transcription-key', async (event, apiKey) => {
     return { success: true };
   } catch (err) {
     console.warn('[Voice Config] Could not save voice transcription settings:', err.message);
-    return { success: false, message: 'Could not save transcription settings.' };
+    return { success: false, message: 'Could not save Groq settings.' };
   }
 });
 
@@ -123,19 +149,19 @@ ipcMain.handle('clear-voice-transcription-key', async () => {
     return { success: true };
   } catch (err) {
     console.warn('[Voice Config] Could not clear voice transcription settings:', err.message);
-    return { success: false, message: 'Could not clear transcription settings.' };
+    return { success: false, message: 'Could not clear Groq settings.' };
   }
 });
 
 ipcMain.handle('transcribe-audio', async (event, arrayBuffer, mimeType) => {
   const transcriptionUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
-  const apiKey = readVoiceTranscriptionKey();
+  const { apiKey } = readVoiceTranscriptionConfig();
 
   if (!apiKey) {
     return {
       success: false,
       code: 'not_configured',
-      error: 'Voice transcription needs setup. Add your transcription key in Settings.'
+      error: 'Voice recording needs setup. Add your Groq key in Settings.'
     };
   }
 
@@ -182,7 +208,7 @@ ipcMain.handle('transcribe-audio', async (event, arrayBuffer, mimeType) => {
       const detail = await res.text().catch(() => '');
       console.error(`[Voice Transcription Error] HTTP ${res.status}: ${detail.slice(0, 300)}`);
       if (res.status === 401) {
-        return { success: false, code: 'invalid_key', error: 'Voice transcription key was rejected. Update it in Settings.' };
+        return { success: false, code: 'invalid_key', error: 'Groq rejected the voice key. Update the key and try again.' };
       }
       if (res.status === 429) {
         return { success: false, error: 'Voice transcription is rate limited. Wait a moment and try again.' };
