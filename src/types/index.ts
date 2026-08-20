@@ -174,7 +174,6 @@ declare global {
       platform: string;
       isElectron: boolean;
       triggerDictation: () => Promise<boolean>;
-      transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType: string) => Promise<{ success: boolean; text?: string; error?: string }>;
       openExternalUrl: (url: string) => Promise<boolean>;
       getAuthCallbackUrl: () => Promise<string>;
       startGoogleOAuth: (options: Record<string, any>) => Promise<boolean>;

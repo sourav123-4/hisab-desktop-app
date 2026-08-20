@@ -63,6 +63,16 @@ test('planner supports add and edit flows', async ({ page }, testInfo) => {
   await expect(page.locator('.metric-card').filter({ hasText: `Emergency Fund UI ${suffix}` }).first()).toBeVisible();
 });
 
+test('dictation modal does not expose recording or provider key errors', async ({ page }) => {
+  await page.locator('#aiVoiceBtn').click();
+  await expect(page.locator('#voiceModal')).toHaveClass(/active/);
+  await expect(page.locator('#toggleRecordBtn')).toHaveCount(0);
+  await expect(page.locator('#voiceModal')).not.toContainText(/GROQ|API_KEY|api key|Start Voice Recording/i);
+
+  await page.locator('#voiceTranscriptInput').fill('350 petrol, 500 groceries via UPI');
+  await expect(page.locator('#voicePreviewItems')).toContainText('Found 2 Hisab Entries');
+});
+
 test('dashboard and planner render on mobile viewport', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'mobile project only');
   await expect(page.locator('#currentTabTitle')).toHaveText('Dashboard');

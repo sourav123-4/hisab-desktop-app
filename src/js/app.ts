@@ -18,12 +18,6 @@ import { checkAndTriggerDesktopAlerts } from './notifications.js';
 let activeTab = 'dashboard';
 let currentMonthYear = getCurrentMonthYear();
 
-let micStream: MediaStream | null = null;
-let mediaRecorder: MediaRecorder | null = null;
-let audioChunks: Blob[] = [];
-let audioContext: any = null;
-let isAudioRecording = false;
-
 function getCurrentMonthYear(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -158,7 +152,6 @@ function startApp() {
   // Global Keyboard Escape Listener to Close Open Modals
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
-      stopAudioRecording();
       document.querySelectorAll('.modal-overlay.active').forEach(modal => {
         closeModal(modal.id);
       });
@@ -171,7 +164,6 @@ function startApp() {
     if (closeBtn) {
       const modalId = closeBtn.getAttribute('data-close');
       if (modalId) {
-        if (modalId === 'voiceModal') stopAudioRecording();
         closeModal(modalId);
       }
     }
@@ -181,7 +173,6 @@ function startApp() {
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e: any) => {
       if (e.target === overlay) {
-        if (overlay.id === 'voiceModal') stopAudioRecording();
         closeModal(overlay.id);
       }
     });
@@ -302,34 +293,15 @@ function startApp() {
     if (e.key === 'Enter') processAISmartSave();
   });
 
-  // Voice Recording & Dictation Event Listeners
+  // Dictation entry event listeners
   aiVoiceBtn?.addEventListener('click', () => {
-    if (isAudioRecording) {
-      stopAudioRecording();
-    } else {
-      startAudioRecording();
-    }
+    openVoiceModal();
   });
 
   const macDictationBtn = document.getElementById('macDictationBtn');
   if (macDictationBtn) {
-    macDictationBtn.addEventListener('click', () => {
-      if (isAudioRecording) {
-        stopAudioRecording();
-      } else {
-        startAudioRecording();
-      }
-    });
-  }
-
-  const toggleRecordBtn = document.getElementById('toggleRecordBtn');
-  if (toggleRecordBtn) {
-    toggleRecordBtn.addEventListener('click', () => {
-      if (isAudioRecording) {
-        stopAudioRecording();
-      } else {
-        startAudioRecording();
-      }
+    macDictationBtn.addEventListener('click', async () => {
+      await triggerSystemDictation();
     });
   }
 
@@ -379,213 +351,41 @@ if (document.readyState === 'loading') {
   startApp();
 }
 
-// MediaRecorder Audio Capture Controller
-async function startAudioRecording() {
+function openVoiceModal() {
   openModal('voiceModal');
-
   const statusText = document.getElementById('voiceStatusText');
-  const toggleBtn = document.getElementById('toggleRecordBtn');
-  const micCircle = document.querySelector('.mic-circle') as HTMLElement | null;
   const transcriptInput = document.getElementById('voiceTranscriptInput') as HTMLTextAreaElement | null;
 
   if (transcriptInput) {
     transcriptInput.focus();
   }
-  updateVoicePreview();
-
-  audioChunks = [];
-  isAudioRecording = false;
-
-  try {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-    const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/wav'].find(t =>
-      MediaRecorder.isTypeSupported(t)
-    );
-
-    mediaRecorder = mimeType
-      ? new MediaRecorder(micStream, { mimeType })
-      : new MediaRecorder(micStream);
-    audioChunks = [];
-
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunks.push(e.data);
-    };
-
-    mediaRecorder.onstop = async () => {
-      if (micStream) {
-        micStream.getTracks().forEach(t => t.stop());
-        micStream = null;
-      }
-      if (audioContext) {
-        try { audioContext.close(); } catch (e) { }
-        audioContext = null;
-      }
-
-      if (audioChunks.length === 0) {
-        if (statusText) {
-          statusText.style.color = 'var(--accent-warning)';
-          statusText.textContent = '⚠️ No audio captured. Click "Start Voice Recording" to try again.';
-        }
-        return;
-      }
-
-      const blob = new Blob(audioChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
-      audioChunks = [];
-
-      if (blob.size < 1200) {
-        if (statusText) {
-          statusText.style.color = 'var(--accent-warning)';
-          statusText.textContent = '⚠️ Recording too short — speak longer.';
-        }
-        return;
-      }
-
-      if (statusText) {
-        statusText.style.color = 'var(--accent-primary)';
-        statusText.textContent = '⏳ Transcribing audio...';
-      }
-
-      let audioBuffer: ArrayBuffer;
-      let audioMime: string;
-      try {
-        const raw = await blob.arrayBuffer();
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const decoded = await ctx.decodeAudioData(raw.slice(0));
-        const n = decoded.length;
-        const mono = new Float32Array(n);
-        for (let c = 0; c < decoded.numberOfChannels; c++) {
-          const ch = decoded.getChannelData(c);
-          for (let i = 0; i < n; i++) mono[i] += ch[i] / decoded.numberOfChannels;
-        }
-        const wav = new DataView(new ArrayBuffer(44 + n * 2));
-        const wr = (off: number, s: string) => { for (let i = 0; i < s.length; i++) wav.setUint8(off + i, s.charCodeAt(i)); };
-        wr(0, 'RIFF'); wav.setUint32(4, 36 + n * 2, true); wr(8, 'WAVE');
-        wr(12, 'fmt '); wav.setUint32(16, 16, true); wav.setUint16(20, 1, true);
-        wav.setUint16(22, 1, true); wav.setUint32(24, decoded.sampleRate || 16000, true);
-        wav.setUint32(28, (decoded.sampleRate || 16000) * 2, true);
-        wav.setUint16(32, 2, true); wav.setUint16(34, 16, true);
-        wr(36, 'data'); wav.setUint32(40, n * 2, true);
-        for (let i = 0; i < n; i++) {
-          const s = Math.max(-1, Math.min(1, mono[i]));
-          wav.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-        }
-        audioBuffer = wav.buffer;
-        audioMime = 'audio/wav';
-      } catch (convErr: any) {
-        audioBuffer = await blob.arrayBuffer();
-        audioMime = blob.type;
-      }
-
-      try {
-        let res: any;
-        if (window.electronAPI?.transcribeAudio) {
-          res = await window.electronAPI.transcribeAudio(audioBuffer, audioMime);
-        } else {
-          res = { success: false, error: 'Transcription service offline.' };
-        }
-
-        if (res && res.success && res.text) {
-          const cleanText = String(res.text || '').replace(/\$/g, '₹').replace(/\b(?:USD|dollars?|dollar)\b/gi, 'rupees').trim();
-          if (transcriptInput) {
-            transcriptInput.value = cleanText;
-            updateVoicePreview();
-          }
-          if (statusText) {
-            statusText.style.color = 'var(--accent-success)';
-            statusText.textContent = '✅ Audio Transcribed! Click "Process & Save All" below.';
-          }
-        } else {
-          const errMsg = res?.error || "Couldn't transcribe audio — speak clearly or type text.";
-          if (transcriptInput && transcriptInput.value.trim()) {
-            updateVoicePreview();
-            if (statusText) {
-              statusText.style.color = 'var(--accent-success)';
-              statusText.textContent = '✅ Ready to process! Click "Process & Save All" below.';
-            }
-          } else if (statusText) {
-            statusText.style.color = 'var(--accent-warning)';
-            statusText.textContent = `⚠️ ${errMsg}`;
-          }
-        }
-      } catch (err) {
-        if (transcriptInput && transcriptInput.value.trim()) {
-          updateVoicePreview();
-        } else if (statusText) {
-          statusText.style.color = 'var(--accent-warning)';
-          statusText.textContent = '⚠️ Audio transcription error. Please try again.';
-        }
-      }
-    };
-
-    mediaRecorder.start();
-    isAudioRecording = true;
-
-    // Real-Time Audio Visualizer
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    audioContext = new AudioCtx();
-    const source = audioContext.createMediaStreamSource(micStream);
-    const analyser = audioContext.createAnalyser();
-    source.connect(analyser);
-    analyser.fftSize = 64;
-
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    const updateVol = () => {
-      if (!isAudioRecording) return;
-      analyser.getByteFrequencyData(dataArray);
-      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-      if (micCircle) {
-        micCircle.style.transform = `scale(${1 + Math.min(avg / 90, 0.5)})`;
-        micCircle.style.boxShadow = `0 0 ${15 + Math.min(avg / 3, 30)}px rgba(239, 68, 68, 0.6)`;
-      }
-      requestAnimationFrame(updateVol);
-    };
-    updateVol();
-
-    if (toggleBtn) {
-      toggleBtn.innerHTML = '⏹️ Stop & Transcribe';
-      toggleBtn.className = 'btn btn-danger btn-sm';
-    }
-    if (statusText) {
-      statusText.style.color = '#ef4444';
-      statusText.textContent = '🔴 Recording Audio... Speak now, then click "Stop & Transcribe"';
-    }
-  } catch (micErr) {
-    isAudioRecording = false;
-    if (micStream) {
-      micStream.getTracks().forEach(t => t.stop());
-      micStream = null;
-    }
-    if (statusText) {
-      statusText.style.color = 'var(--accent-warning)';
-      statusText.textContent = '❌ Microphone access denied — Enable mic permissions in macOS System Settings → Privacy & Security → Microphone.';
-    }
+  if (statusText) {
+    statusText.style.color = 'var(--accent-primary)';
+    statusText.textContent = 'Use system dictation or type multiple transactions below.';
   }
+  updateVoicePreview();
 }
 
-function stopAudioRecording() {
-  if (!isAudioRecording) return;
-  isAudioRecording = false;
-
+async function triggerSystemDictation() {
+  openVoiceModal();
   const statusText = document.getElementById('voiceStatusText');
-  const toggleBtn = document.getElementById('toggleRecordBtn');
-  const micCircle = document.querySelector('.mic-circle') as HTMLElement | null;
-
-  if (toggleBtn) {
-    toggleBtn.innerHTML = '🔴 Start Voice Recording';
-    toggleBtn.className = 'btn btn-secondary btn-sm';
-  }
-  if (micCircle) {
-    micCircle.style.transform = 'scale(1)';
-    micCircle.style.boxShadow = 'none';
-  }
-
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+  const transcriptInput = document.getElementById('voiceTranscriptInput') as HTMLTextAreaElement | null;
+  try {
+    if (transcriptInput) transcriptInput.focus();
     if (statusText) {
       statusText.style.color = 'var(--accent-primary)';
-      statusText.textContent = '⏳ Transcribing audio...';
+      statusText.textContent = 'Starting system dictation. Speak, then review the text before saving.';
     }
-    mediaRecorder.stop();
+    const started = await window.electronAPI?.triggerDictation?.();
+    if (!started && statusText) {
+      statusText.style.color = 'var(--accent-warning)';
+      statusText.textContent = 'System dictation is not available here. Type your entries below.';
+    }
+  } catch (err) {
+    if (statusText) {
+      statusText.style.color = 'var(--accent-warning)';
+      statusText.textContent = 'System dictation could not be started. Type your entries below.';
+    }
   }
 }
 
@@ -598,7 +398,7 @@ function updateVoicePreview() {
   const items = parseMultipleHisabs(text);
 
   if (items.length === 0) {
-    previewEl.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">No transactions detected yet... Speak e.g. "given 5000 to tapas mamu, 350 petrol"</span>';
+    previewEl.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">No transactions detected yet... Try "given 5000 to tapas mamu, 350 petrol"</span>';
   } else {
     previewEl.innerHTML = `
       <div style="font-size: 11px; font-weight: 700; color: var(--accent-primary); margin-bottom: 6px;">
@@ -652,8 +452,7 @@ function handleVoiceSubmit() {
       }
     });
 
-    showToast(`🎙️ Voice Entry Done: ${summaryItems.join(' | ')}`);
-    stopAudioRecording();
+    showToast(`🎙️ Entries saved: ${summaryItems.join(' | ')}`);
     closeModal('voiceModal');
     if (voiceTranscriptInput) voiceTranscriptInput.value = '';
     renderCurrentTab();
