@@ -41,6 +41,7 @@
       "preload.cjs",
       "src/**/*",
       "assets/**/*",
+      ".env",
       "package.json"
     ],
     "mac": {

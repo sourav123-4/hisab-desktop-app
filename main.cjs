@@ -16,6 +16,9 @@ try {
   if (app && typeof app.getAppPath === 'function') {
     possibleEnvPaths.push(path.join(app.getAppPath(), '.env'));
   }
+  if (process.resourcesPath) {
+    possibleEnvPaths.push(path.join(process.resourcesPath, '.env'));
+  }
   for (const envPath of possibleEnvPaths) {
     if (fs.existsSync(envPath)) {
       const envConfig = fs.readFileSync(envPath, 'utf8');
